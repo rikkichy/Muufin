@@ -1,0 +1,17 @@
+.dart_tool/
+.buildlog
+.packages
+.pub/
+.pub-cache/
+build/
+android/.gradle/
+android/app/build/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/flutter_export_environment.sh
+ios/Runner.xcworkspace/
+.idea/
+.vscode/
+*.iml
