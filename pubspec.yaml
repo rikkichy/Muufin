@@ -1,0 +1,40 @@
+name: muufin
+description: Muufin — Jellyfin music client (Android/Windows) — playlists, artists, albums, playback
+publish_to: "none"
+version: 0.1.0+1
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  dio: ^5.7.0
+  flutter_riverpod: ^2.6.1
+  go_router: ^14.6.2
+  animations: ^2.0.11
+  flutter_secure_storage: ^10.0.0
+  uuid: ^4.5.1
+  cached_network_image: ^3.4.1
+  intl: ^0.20.2
+  path_provider: ^2.1.5
+  dynamic_color: ^1.8.1
+  just_audio: ^0.9.42
+  just_audio_media_kit: ^2.1.0
+  media_kit_libs_windows_audio: any
+  audio_service: ^0.18.15
+  audio_session: ^0.1.21
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.4
+flutter:
+  uses-material-design: true
+flutter_launcher_icons:
+  image_path: "assets/muufin.png"
+  android: true
+  adaptive_icon_foreground: "assets/muufin.png"
+  adaptive_icon_background: "#121212"
+  windows:
+    generate: true
+    image_path: "assets/muufin.png"
