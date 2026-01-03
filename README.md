@@ -44,7 +44,7 @@
 Head to the **[Releases](../../releases)** page:
 
 - **Android** → download the latest `.apk`
-- **Windows** → download the latest Windows build
+- **Windows** → download the latest `.zip`
 
 > Alpha builds may be unstable and incompatible between versions.
 
