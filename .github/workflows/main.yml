@@ -1,0 +1,74 @@
+name: Build Muufin (Android & Windows)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+jobs:
+  android:
+    name: Build .apk
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up temurin
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build apk-release
+        run: flutter build apk --release
+
+      - name: Upload apk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muufin-android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    name: Build .exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build .exe for release
+        run: flutter build windows --release
+
+      - name: List build output (debugging)
+        run: |
+          echo "Listing build/windows:"
+          Get-ChildItem -Recurse build/windows | Format-List -Property FullName
+
+      - name: Upload .exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muufin-windows-build
+          path: build/windows/x64/runner/Release/**
