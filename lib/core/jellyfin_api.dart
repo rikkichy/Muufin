@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import '../models/auth_state.dart';
 import '../models/auth_result.dart';
@@ -19,6 +21,13 @@ class JellyfinApi {
             },
           ),
         ) {
+    if (auth.disableTls) {
+      (_dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
+        final client = HttpClient();
+        client.badCertificateCallback = (cert, host, port) => true;
+        return client;
+      };
+    }
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
@@ -38,7 +47,6 @@ class JellyfinApi {
   final AuthState auth;
   final Dio _dio;
 
-  
   Dio get dio => _dio;
 
   static String buildAuthorizationHeader({
@@ -48,8 +56,6 @@ class JellyfinApi {
     required String version,
     String? token,
   }) {
-    
-    
     final parts = <String>[
       'Client="$client"',
       'Device="$device"',
@@ -69,7 +75,6 @@ class JellyfinApi {
       data: {'Username': username, 'Pw': password},
       options: Options(
         headers: {
-          
           'Authorization': buildAuthorizationHeader(
             client: auth.clientName,
             device: auth.deviceName,
@@ -85,9 +90,32 @@ class JellyfinApi {
     return AuthResult.fromJson(data);
   }
 
-  
-  
-  
+  Future<Map<String, dynamic>> initiateQuickConnect() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/QuickConnect/Initiate',
+      options: Options(
+        headers: {
+           'Authorization': buildAuthorizationHeader(
+            client: auth.clientName,
+            device: auth.deviceName,
+            deviceId: auth.deviceId,
+            version: auth.appVersion,
+            token: null,
+          ),
+        },
+      ),
+    );
+    return res.data ?? const {};
+  }
+
+  Future<Map<String, dynamic>> checkQuickConnect(String secret) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/QuickConnect/Connect',
+      queryParameters: {'secret': secret},
+    );
+    return res.data ?? const {};
+  }
+
   Future<Map<String, dynamic>> getCurrentUser() async {
     final res = await _dio.get<Map<String, dynamic>>('/Users/Me');
     return res.data ?? const {};
@@ -120,7 +148,7 @@ class JellyfinApi {
         'limit': limit,
         if (searchTerm != null && searchTerm.isNotEmpty) 'searchTerm': searchTerm,
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
@@ -146,7 +174,7 @@ class JellyfinApi {
         'sortBy': 'SortName',
         'sortOrder': 'Ascending',
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
@@ -166,7 +194,7 @@ class JellyfinApi {
         'sortBy': 'IndexNumber,SortName',
         'sortOrder': 'Ascending',
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
@@ -186,7 +214,7 @@ class JellyfinApi {
         'sortBy': 'SortName',
         'sortOrder': 'Ascending',
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
@@ -210,7 +238,7 @@ class JellyfinApi {
         'sortBy': 'SortName',
         'sortOrder': 'Ascending',
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
@@ -220,8 +248,6 @@ class JellyfinApi {
     required String userId,
     required String playlistId,
   }) async {
-    
-    
     const pageSize = 1000;
     final out = <BaseItem>[];
     int start = 0;
@@ -257,7 +283,6 @@ class JellyfinApi {
         'userId': userId,
         'startIndex': startIndex,
         'limit': limit,
-        
         'enableUserData': false,
         'enableImages': true,
         'enableImageTypes': 'Primary',
@@ -281,15 +306,12 @@ class JellyfinApi {
         'limit': 50,
         'startIndex': 0,
         'enableImages': true,
-              },
+      },
     );
     final qr = BaseItemQueryResult.fromJson(res.data ?? const {});
     return qr.items;
   }
 
-  
-  
-  
   Future<BaseItem> getItem({
     required String userId,
     required String itemId,
@@ -304,7 +326,6 @@ class JellyfinApi {
     return BaseItem.fromJson(res.data ?? const {});
   }
 
-  
   Uri itemImageUri({
     required String itemId,
     String imageType = 'Primary',
@@ -318,7 +339,6 @@ class JellyfinApi {
     return uri.replace(queryParameters: qp.isEmpty ? null : qp.map((k, v) => MapEntry(k, v.toString())));
   }
 
-  
   Uri universalAudioUri({
     required String itemId,
     required String userId,
@@ -346,9 +366,6 @@ class JellyfinApi {
     return uri.replace(queryParameters: qp);
   }
 
-  
-  
-  
   Uri audioStreamUri({
     required String itemId,
     String container = 'mp3',
@@ -371,11 +388,6 @@ class JellyfinApi {
         ),
       };
 
-  
-
-  
-  
-  
   Future<Map<String, dynamic>?> getItemForPlaybackUi({
     required String userId,
     required String itemId,
@@ -399,7 +411,6 @@ class JellyfinApi {
     }
     return null;
   }
-
 
   Uri originalDownloadUri({required String itemId}) {
     return Uri.parse(_dio.options.baseUrl + '/Items/$itemId/Download');

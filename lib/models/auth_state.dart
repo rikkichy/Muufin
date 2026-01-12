@@ -7,6 +7,7 @@ class AuthState {
     required this.appVersion,
     required this.userId,
     required this.accessToken,
+    this.disableTls = false,
   });
 
   final String baseUrl;
@@ -16,6 +17,7 @@ class AuthState {
   final String appVersion;
   final String userId;
   final String accessToken;
+  final bool disableTls;
 
   bool get isLoggedIn => accessToken.isNotEmpty && userId.isNotEmpty;
 }
