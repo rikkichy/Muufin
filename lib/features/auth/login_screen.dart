@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +8,7 @@ import '../../providers.dart';
 import '../../core/jellyfin_api.dart';
 import '../../models/auth_state.dart';
 import '../../models/auth_result.dart';
+import '../../core/http_overrides.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -31,6 +34,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  void _applyTlsSettings() {
+    if (_disableTls) {
+      HttpOverrides.global = BadCertHttpOverrides();
+    }
+  }
+
   Future<void> _submit() async {
     final ok = _formKey.currentState?.validate() ?? false;
     if (!ok) return;
@@ -40,6 +49,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final password = _passCtrl.text;
 
     try {
+      _applyTlsSettings();
+
       await ref.read(authStateProvider.notifier).login(
             baseUrl: baseUrl,
             username: username,
@@ -62,6 +73,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
       return;
     }
+
+    _applyTlsSettings();
 
     showDialog(
       context: context,
@@ -256,7 +269,6 @@ class _QuickConnectDialogState extends State<_QuickConnectDialog> {
 
         if (authorized) {
            _authorized = true;
-
            final userId = res['Id'] ?? res['UserId'];
            final token = res['AccessToken'];
 
@@ -310,6 +322,18 @@ class _QuickConnectDialogState extends State<_QuickConnectDialog> {
             const CircularProgressIndicator(),
             const SizedBox(height: 8),
             const Text('Waiting for authorization...'),
+            if (widget.baseUrl.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                   launchUrl(
+                     Uri.parse('${widget.baseUrl}/quickconnect/enter'),
+                     mode: LaunchMode.externalApplication,
+                   );
+                },
+                child: const Text('Open Quick Connect Page'),
+              ),
+            ]
           ],
         ],
       ),

@@ -7,20 +7,12 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 import 'app.dart';
 import 'core/auth_storage.dart';
+import 'core/http_overrides.dart'; // Import the new file
 import 'player/jellyfin_audio_handler.dart';
 import 'providers.dart';
 
-class BadCertHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
-}
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
 
   try {
     const storage = AuthStorage();
