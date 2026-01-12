@@ -7,8 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import '../models/auth_state.dart';
 import '../models/base_item.dart';
 import '../core/jellyfin_api.dart';
-
-
+import 'jellyfin_stream_audio_source.dart';
 
 Future<JellyfinAudioHandler> initAudioHandler() async {
   final session = await AudioSession.instance;
@@ -56,18 +55,13 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
       return;
     }
 
-    
-    
     final currentTag = _player.sequenceState?.currentSource?.tag;
     final currentItem = (currentTag is MediaItem) ? currentTag : mediaItem.value;
     final currentPos = _player.position;
 
-    
-    
     await _player.shuffle();
     await _player.setShuffleModeEnabled(true);
 
-    
     if (currentItem != null) {
       final seq = _player.sequence;
       if (seq != null) {
@@ -124,7 +118,6 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
   @override
   Future<void> skipToQueueItem(int index) async {
     await _player.seek(Duration.zero, index: index);
-    
     if (!_player.playing) await _player.play();
   }
 
@@ -157,26 +150,37 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
       mediaItems.add(mi);
 
       final container = (t.container ?? 'mp3').toLowerCase();
-      final uri = Platform.isAndroid
-          
-          ? api.audioStreamUri(itemId: t.id, container: container, static: true)
-          
-          : api.universalAudioUri(
-              itemId: t.id,
-              userId: auth.userId,
-              deviceId: auth.deviceId,
-              container: 'mp3',
-              audioCodec: 'mp3',
-              transcodingContainer: 'mp3',
-              maxStreamingBitrate: 999999999,
-            );
-      sources.add(
-        AudioSource.uri(
+
+      AudioSource source;
+
+      if (auth.disableTls) {
+        source = JellyfinStreamAudioSource(
+          api: api,
+          itemId: t.id,
+          container: container,
+          tag: mi,
+        );
+      } else {
+        final uri = Platform.isAndroid
+            ? api.audioStreamUri(itemId: t.id, container: container, static: true)
+            : api.universalAudioUri(
+                itemId: t.id,
+                userId: auth.userId,
+                deviceId: auth.deviceId,
+                container: 'mp3',
+                audioCodec: 'mp3',
+                transcodingContainer: 'mp3',
+                maxStreamingBitrate: 999999999,
+              );
+
+        source = AudioSource.uri(
           uri,
           tag: mi,
           headers: api.authHeaders(),
-        ),
-      );
+        );
+      }
+
+      sources.add(source);
     }
 
     queue.add(mediaItems);
@@ -198,13 +202,6 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
       final playing = _player.playing;
       final q = queue.value;
 
-      
-      
-      
-      
-      
-      
-      
       final currentTag = _player.sequenceState?.currentSource?.tag;
       final itemFromPlayer = currentTag is MediaItem ? currentTag : null;
       final prevItem = mediaItem.value;
@@ -257,12 +254,7 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
         ),
       );
 
-      
-      
       if (itemFromPlayer != null) {
-        
-        
-        
         if (prevItem?.id != itemFromPlayer.id) {
           mediaItem.add(itemFromPlayer);
         }
@@ -279,17 +271,12 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
       if (current == null) return;
       if (duration == null) return;
 
-      
-      
-      
       final existing = current.duration;
       if (existing != null && existing > Duration.zero) {
-        
         return;
       }
 
       mediaItem.add(current.copyWith(duration: duration));
     });
   }
-
 }
