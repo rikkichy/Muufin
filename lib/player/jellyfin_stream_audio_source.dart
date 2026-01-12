@@ -5,8 +5,6 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/jellyfin_api.dart';
 
-
-
 class JellyfinStreamAudioSource extends StreamAudioSource {
   JellyfinStreamAudioSource({
     required this.api,
@@ -29,52 +27,71 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       headers['Range'] = endInclusive != null ? 'bytes=$start-$endInclusive' : 'bytes=$start-';
     }
 
-    final res = await api.dio.get<ResponseBody>(
-      uri.toString(),
-      options: Options(
-        responseType: ResponseType.stream,
-        headers: headers,
-        followRedirects: true,
-        validateStatus: (s) => s != null && s >= 200 && s < 400,
-      ),
-    );
+    final cancelToken = CancelToken();
 
-    
-    final contentRange = res.headers.value('content-range');
+    try {
+      final res = await api.dio.get<ResponseBody>(
+        uri.toString(),
+        cancelToken: cancelToken,
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: headers,
+          followRedirects: true,
+          validateStatus: (s) => s != null && s >= 200 && s < 400,
+        ),
+      );
 
-    int? sourceLength;
-    int? contentLength;
-    int offset = start ?? 0;
+      final contentRange = res.headers.value('content-range');
+      int? sourceLength;
+      int? contentLength;
+      int offset = start ?? 0;
 
-    if (contentRange != null) {
-      
-      final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
-      if (m != null) {
-        offset = int.tryParse(m.group(1) ?? '') ?? offset;
-        final endByte = int.tryParse(m.group(2) ?? '');
-        final total = m.group(3);
-        if (endByte != null) {
-          contentLength = (endByte - offset) + 1;
-        }
-        if (total != null && total != '*' ) {
-          sourceLength = int.tryParse(total);
+      if (contentRange != null) {
+        final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
+        if (m != null) {
+          offset = int.tryParse(m.group(1) ?? '') ?? offset;
+          final endByte = int.tryParse(m.group(2) ?? '');
+          final total = m.group(3);
+          if (endByte != null) {
+            contentLength = (endByte - offset) + 1;
+          }
+          if (total != null && total != '*') {
+            sourceLength = int.tryParse(total);
+          }
         }
       }
+
+      sourceLength ??= int.tryParse(res.headers.value('content-length') ?? '');
+      contentLength ??= int.tryParse(res.headers.value('content-length') ?? '');
+
+      final contentType = res.headers.value('content-type') ?? _defaultContentType(container);
+
+      final controller = StreamController<List<int>>();
+
+      final sub = res.data!.stream.listen(
+        (data) => controller.add(data),
+        onError: (e) => controller.addError(e),
+        onDone: () => controller.close(),
+      );
+
+      controller.onCancel = () {
+        sub.cancel();
+        if (!cancelToken.isCancelled) {
+          cancelToken.cancel();
+        }
+      };
+
+      return StreamAudioResponse(
+        sourceLength: sourceLength,
+        contentLength: contentLength,
+        offset: offset,
+        stream: controller.stream,
+        contentType: contentType,
+      );
+    } catch (e) {
+      if (!cancelToken.isCancelled) cancelToken.cancel();
+      rethrow;
     }
-
-    
-    sourceLength ??= int.tryParse(res.headers.value('content-length') ?? '');
-    contentLength ??= int.tryParse(res.headers.value('content-length') ?? '');
-
-    final contentType = res.headers.value('content-type') ?? _defaultContentType(container);
-
-    return StreamAudioResponse(
-      sourceLength: sourceLength,
-      contentLength: contentLength,
-      offset: offset,
-      stream: res.data!.stream,
-      contentType: contentType,
-    );
   }
 
   static String _defaultContentType(String container) {
