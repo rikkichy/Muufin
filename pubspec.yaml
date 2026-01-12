@@ -23,7 +23,6 @@ dependencies:
   media_kit_libs_windows_audio: any
   audio_service: ^0.18.15
   audio_session: ^0.1.21
-  # Added dependencies for the new features
   url_launcher: ^6.3.0
   flutter_cache_manager: ^3.4.1
 
