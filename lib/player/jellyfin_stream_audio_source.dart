@@ -19,7 +19,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
-    final uri = api.audioStreamUri(itemId: itemId, container: container, static: false);
+    final uri = api.audioStreamUri(itemId: itemId, container: container, static: true);
 
     final headers = <String, dynamic>{
       ...api.authHeaders(),

@@ -144,7 +144,7 @@ class JellyfinAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandl
         artist: t.artists.isNotEmpty ? t.artists.join(', ') : (t.albumArtist ?? ''),
         album: t.album,
         duration: t.duration,
-        artUri: art,
+        artUri: auth.disableTls ? null : art,
       );
 
       mediaItems.add(mi);
