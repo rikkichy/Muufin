@@ -26,7 +26,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       'Accept': '*/*',
     };
 
-    if (start != null) {
+    if (start != null && (start > 0 || end != null)) {
       final endInclusive = (end != null) ? (end - 1) : null;
       headers['Range'] = endInclusive != null ? 'bytes=$start-$endInclusive' : 'bytes=$start-';
     }

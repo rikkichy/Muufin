@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/jellyfin_cache_manager.dart';
 import '../../models/base_item.dart';
 import '../../providers.dart';
 import '../../player/playback_controller.dart';
@@ -30,8 +31,8 @@ class PlaylistDetailScreen extends ConsumerWidget {
       return current.items;
     }
 
-    
-    
+
+
     final future = ref.read(playlistTracksControllerProvider(playlistId).notifier).ensureAllLoaded();
 
     var dialogShown = false;

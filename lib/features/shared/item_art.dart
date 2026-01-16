@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin_cache_manager.dart';
 import '../../models/base_item.dart';
 import '../../providers.dart';
-
 
 class ItemArt extends ConsumerWidget {
   const ItemArt({
@@ -34,7 +34,6 @@ class ItemArt extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        
         final w = width ?? (constraints.hasBoundedWidth ? constraints.maxWidth : 320);
         final requested = w.isFinite ? w.toInt() * 2 : 640;
 
@@ -49,6 +48,7 @@ class ItemArt extends ConsumerWidget {
           borderRadius: clip,
           child: CachedNetworkImage(
             imageUrl: uri.toString(),
+            cacheManager: JellyfinCacheManager(),
             httpHeaders: api.authHeaders(),
             width: width,
             height: height,
