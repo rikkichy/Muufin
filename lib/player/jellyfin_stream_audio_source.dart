@@ -21,7 +21,11 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     final uri = api.audioStreamUri(itemId: itemId, container: container, static: false);
 
-    final headers = <String, dynamic>{...api.authHeaders()};
+    final headers = <String, dynamic>{
+      ...api.authHeaders(),
+      'Accept': '*/*',
+    };
+
     if (start != null) {
       final endInclusive = (end != null) ? (end - 1) : null;
       headers['Range'] = endInclusive != null ? 'bytes=$start-$endInclusive' : 'bytes=$start-';

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/jellyfin_cache_manager.dart';
 import '../../models/base_item.dart';
 import '../../providers.dart';
 
@@ -24,6 +25,7 @@ class ItemImage extends ConsumerWidget {
       borderRadius: BorderRadius.circular(22),
       child: CachedNetworkImage(
         imageUrl: uri.toString(),
+        cacheManager: JellyfinCacheManager(),
         httpHeaders: api.authHeaders(),
         width: size,
         height: size,
