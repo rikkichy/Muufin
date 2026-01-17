@@ -69,12 +69,46 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       sourceLength ??= contentLengthHeader;
 
       final requestedStart = start ?? 0;
-      final bytesToSkip = requestedStart - responseStart;
 
-      Stream<List<int>> stream = res.data!.stream;
-      if (bytesToSkip > 0) {
-        stream = _skipBytes(stream, bytesToSkip);
+      bool isFirstChunk = true;
+      int skippedSoFar = 0;
+
+      int bytesToSkip = 0;
+      if (requestedStart > responseStart) {
+        bytesToSkip = requestedStart - responseStart;
       }
+
+      final transformer = StreamTransformer<List<int>, List<int>>.fromHandlers(
+        handleData: (data, sink) {
+          if (isFirstChunk) {
+            isFirstChunk = false;
+
+            if (requestedStart > 0 && data.length >= 4) {
+               if (data[0] == 0x66 && data[1] == 0x4C && data[2] == 0x61 && data[3] == 0x43) {
+                  bytesToSkip = requestedStart;
+               }
+            }
+          }
+
+          if (bytesToSkip > 0) {
+            if (skippedSoFar >= bytesToSkip) {
+              sink.add(data);
+            } else {
+              final remaining = bytesToSkip - skippedSoFar;
+              if (data.length <= remaining) {
+                skippedSoFar += data.length;
+              } else {
+                sink.add(data.sublist(remaining));
+                skippedSoFar += data.length;
+              }
+            }
+          } else {
+            sink.add(data);
+          }
+        },
+      );
+
+      final stream = res.data!.stream.transform(transformer);
 
       final reportedOffset = requestedStart;
 
@@ -82,7 +116,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       if (sourceLength != null) {
         reportedContentLength = sourceLength - reportedOffset;
       } else if (contentLengthHeader != null) {
-         reportedContentLength = contentLengthHeader - bytesToSkip;
+         reportedContentLength = contentLengthHeader - (requestedStart - responseStart);
       }
 
       final contentType = res.headers.value('content-type') ?? _defaultContentType(container);
@@ -112,23 +146,6 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
     } catch (e) {
       if (!cancelToken.isCancelled) cancelToken.cancel();
       rethrow;
-    }
-  }
-
-  Stream<List<int>> _skipBytes(Stream<List<int>> stream, int bytesToSkip) async* {
-    int skipped = 0;
-    await for (final chunk in stream) {
-      if (skipped >= bytesToSkip) {
-        yield chunk;
-      } else {
-        final remaining = bytesToSkip - skipped;
-        if (chunk.length <= remaining) {
-          skipped += chunk.length;
-        } else {
-          yield chunk.sublist(remaining);
-          skipped += chunk.length;
-        }
-      }
     }
   }
 
