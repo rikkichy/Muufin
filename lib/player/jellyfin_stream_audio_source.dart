@@ -45,44 +45,44 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
         ),
       );
 
-      final contentRange = res.headers.value('content-range');
+      int responseStart = 0;
       int? sourceLength;
-      int? contentLength;
-      int offset = start ?? 0;
 
-      Stream<List<int>> stream = res.data!.stream;
+      final contentRange = res.headers.value('content-range');
+      final contentLengthHeader = int.tryParse(res.headers.value('content-length') ?? '');
 
-      if (res.statusCode == 206) {
-        if (contentRange != null) {
-          final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
-          if (m != null) {
-            offset = int.tryParse(m.group(1) ?? '') ?? offset;
-            final endByte = int.tryParse(m.group(2) ?? '');
-            final total = m.group(3);
-            if (endByte != null) {
-              contentLength = (endByte - offset) + 1;
-            }
-            if (total != null && total != '*') {
-              sourceLength = int.tryParse(total);
-            }
+      if (res.statusCode == 206 && contentRange != null) {
+        final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
+        if (m != null) {
+          responseStart = int.tryParse(m.group(1) ?? '') ?? 0;
+          final totalStr = m.group(3);
+          if (totalStr != null && totalStr != '*') {
+            sourceLength = int.tryParse(totalStr);
           }
         }
       } else if (res.statusCode == 200) {
-        sourceLength = int.tryParse(res.headers.value('content-length') ?? '');
-
-        if (start != null && start > 0) {
-          offset = start;
-          if (sourceLength != null) {
-            contentLength = sourceLength - offset;
-          }
-          stream = _skipBytes(stream, offset);
-        } else {
-          contentLength = sourceLength;
-        }
+        responseStart = 0;
+        sourceLength = contentLengthHeader;
       }
 
-      sourceLength ??= int.tryParse(res.headers.value('content-length') ?? '');
-      contentLength ??= int.tryParse(res.headers.value('content-length') ?? '');
+      sourceLength ??= contentLengthHeader;
+
+      final requestedStart = start ?? 0;
+      final bytesToSkip = requestedStart - responseStart;
+
+      Stream<List<int>> stream = res.data!.stream;
+
+      if (bytesToSkip > 0) {
+        stream = _skipBytes(stream, bytesToSkip);
+      }
+      final reportedOffset = requestedStart;
+
+      int? reportedContentLength;
+      if (sourceLength != null) {
+        reportedContentLength = sourceLength - reportedOffset;
+      } else if (contentLengthHeader != null) {
+         reportedContentLength = contentLengthHeader - bytesToSkip;
+      }
 
       final contentType = res.headers.value('content-type') ?? _defaultContentType(container);
 
@@ -103,8 +103,8 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
 
       return StreamAudioResponse(
         sourceLength: sourceLength,
-        contentLength: contentLength,
-        offset: offset,
+        contentLength: reportedContentLength,
+        offset: reportedOffset,
         stream: controller.stream,
         contentType: contentType,
       );
