@@ -108,7 +108,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
         },
       );
 
-      final stream = res.data!.stream.transform(transformer);
+      final stream = res.data!.stream.cast<List<int>>().transform(transformer);
 
       final reportedOffset = requestedStart;
 
