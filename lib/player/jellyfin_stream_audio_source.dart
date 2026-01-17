@@ -50,18 +50,34 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       int? contentLength;
       int offset = start ?? 0;
 
-      if (contentRange != null) {
-        final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
-        if (m != null) {
-          offset = int.tryParse(m.group(1) ?? '') ?? offset;
-          final endByte = int.tryParse(m.group(2) ?? '');
-          final total = m.group(3);
-          if (endByte != null) {
-            contentLength = (endByte - offset) + 1;
+      Stream<List<int>> stream = res.data!.stream;
+
+      if (res.statusCode == 206) {
+        if (contentRange != null) {
+          final m = RegExp(r'^bytes\s+(\d+)-(\d+)/(\d+|\*)$', caseSensitive: false).firstMatch(contentRange);
+          if (m != null) {
+            offset = int.tryParse(m.group(1) ?? '') ?? offset;
+            final endByte = int.tryParse(m.group(2) ?? '');
+            final total = m.group(3);
+            if (endByte != null) {
+              contentLength = (endByte - offset) + 1;
+            }
+            if (total != null && total != '*') {
+              sourceLength = int.tryParse(total);
+            }
           }
-          if (total != null && total != '*') {
-            sourceLength = int.tryParse(total);
+        }
+      } else if (res.statusCode == 200) {
+        sourceLength = int.tryParse(res.headers.value('content-length') ?? '');
+
+        if (start != null && start > 0) {
+          offset = start;
+          if (sourceLength != null) {
+            contentLength = sourceLength - offset;
           }
+          stream = _skipBytes(stream, offset);
+        } else {
+          contentLength = sourceLength;
         }
       }
 
@@ -72,7 +88,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
 
       final controller = StreamController<List<int>>();
 
-      final sub = res.data!.stream.listen(
+      final sub = stream.listen(
         (data) => controller.add(data),
         onError: (e) => controller.addError(e),
         onDone: () => controller.close(),
@@ -95,6 +111,23 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
     } catch (e) {
       if (!cancelToken.isCancelled) cancelToken.cancel();
       rethrow;
+    }
+  }
+
+  Stream<List<int>> _skipBytes(Stream<List<int>> stream, int bytesToSkip) async* {
+    int skipped = 0;
+    await for (final chunk in stream) {
+      if (skipped >= bytesToSkip) {
+        yield chunk;
+      } else {
+        final remaining = bytesToSkip - skipped;
+        if (chunk.length <= remaining) {
+          skipped += chunk.length;
+        } else {
+          yield chunk.sublist(remaining);
+          skipped += chunk.length;
+        }
+      }
     }
   }
 
