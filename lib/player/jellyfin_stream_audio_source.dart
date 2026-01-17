@@ -24,6 +24,7 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
     final headers = <String, dynamic>{
       ...api.authHeaders(),
       'Accept': '*/*',
+      'Accept-Encoding': 'identity',
     };
 
     if (start != null && (start > 0 || end != null)) {
@@ -71,10 +72,10 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
       final bytesToSkip = requestedStart - responseStart;
 
       Stream<List<int>> stream = res.data!.stream;
-
       if (bytesToSkip > 0) {
         stream = _skipBytes(stream, bytesToSkip);
       }
+
       final reportedOffset = requestedStart;
 
       int? reportedContentLength;
