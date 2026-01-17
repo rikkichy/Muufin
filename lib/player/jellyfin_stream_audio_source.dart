@@ -84,7 +84,10 @@ class JellyfinStreamAudioSource extends StreamAudioSource {
             isFirstChunk = false;
 
             if (requestedStart > 0 && data.length >= 4) {
-               if (data[0] == 0x66 && data[1] == 0x4C && data[2] == 0x61 && data[3] == 0x43) {
+               final isFlac = data[0] == 0x66 && data[1] == 0x4C && data[2] == 0x61 && data[3] == 0x43;
+               final isId3 = data[0] == 0x49 && data[1] == 0x44 && data[2] == 0x33;
+
+               if (isFlac || isId3) {
                   bytesToSkip = requestedStart;
                }
             }
