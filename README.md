@@ -11,7 +11,7 @@
 <h1 align="center">Muufin</h1>
 
 <p align="center">
-  Minimal cross-platform music client for <strong>Jellyfin</strong>, built with <strong>Flutter</strong>.
+  Minimal android music client for <strong>Jellyfin</strong>, built with <strong>Flutter</strong>.
 </p>
 
 <p align="center">
@@ -74,7 +74,15 @@ flutter pub get
 ```bash
 flutter build apk --release
 ```
-### Windows
+### Windows (will be removed soon)
 ```bash
 flutter build windows --release
 ```
+
+---
+
+## FAQ
+
+Q: Why are my song or album covers pixelated? <br>
+A: Muufin does not compress or downscale images. Low-quality covers usually come from the metadata provider chosen in your Jellyfin instance (MusicBrainz often supplies small or low-resolution images). We personally recommend using local images.
+
