@@ -1,74 +1,60 @@
-name: Build Muufin (Android & Windows)
+name: Build Muufin (Android)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
   android:
-    name: Build .apk
+    name: Build APK
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up temurin
+      - name: Set up Java (Temurin 17)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+      - name: Grant Gradle wrapper permission
+        run: chmod +x ./gradlew
 
-      - name: Flutter pub get
-        run: flutter pub get
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug
 
-      - name: Build apk-release
-        run: flutter build apk --release
-
-      - name: Upload apk artifact
+      - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: muufin-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: muufin-android-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
 
-  windows:
-    name: Build .exe
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Enable Windows desktop
-        run: flutter config --enable-windows-desktop
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build .exe for release
-        run: flutter build windows --release
-
-      - name: List build output (debugging)
-        run: |
-          echo "Listing build/windows:"
-          Get-ChildItem -Recurse build/windows | Format-List -Property FullName
-
-      - name: Upload .exe artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: muufin-windows-build
-          path: build/windows/x64/runner/Release/**
+      # ----------------------------
+      # Not available yet.
+      # ----------------------------
+#      - name: Decode keystore (release)
+#        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+#        run: |
+#          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > ${{ github.workspace }}/keystore.jks
+#
+#      - name: Build Release APK
+#        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+#        env:
+#          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/keystore.jks
+#          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+#          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+#          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+#        run: ./gradlew :app:assembleRelease
+#
+#      - name: Upload Release APK artifact
+#        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: muufin-android-release-apk
+#          path: app/build/outputs/apk/release/*.apk
