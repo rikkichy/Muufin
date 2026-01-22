@@ -1,6 +1,6 @@
 <p align="center">
   <img
-    src="assets/muufin.png"
+    src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.png"
     alt="Muufin logo"
     width="160"
     style="border-radius:50%;"
