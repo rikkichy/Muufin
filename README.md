@@ -11,7 +11,7 @@
 <h1 align="center">Muufin</h1>
 
 <p align="center">
-  Minimal android music client for <strong>Jellyfin</strong>, built with <strong>Flutter</strong>.
+  Minimal Jellyfin music client for <strong>android</strong>, built with <strong>Material Expressive</strong>.
 </p>
 
 <p align="center">
@@ -23,66 +23,48 @@
 ---
 
 ## Features
-- Browse your library in Material You UI, both on Android and Windows
-- Lossless FLAC support
-- “Now Playing” screen with playback controls
-- Global search
+- Material Expressive UI, both on Android and Windows
+- DirectPlay FLAC support
+- Playback Reporting, [LastFM support](https://github.com/jesseward/jellyfin-plugin-lastfm)
+- Now Playing screen with playback controls
+- Global search across your music library
 
 ---
 
 ## Planned
 - [ ] Ability to download playlists
 - [ ] Search and add with Lidarr
-- [ ] Account and instance management
-- [ ] Advanced settings
-- [ ] Cast button
+- [x] Account and instance management
+- [x] LastFM plugin support
 - [ ] Internal and external lyrics support
-
+> [!IMPORTANT]
+> This list is not final, something may be removed/added or discontinued.
 ---
 ## Download
 
-Head to the **[Releases](../../releases)** page:
+Head to the **[Releases](../../releases)** page and download the latest apk.
 
-- **Android** → download the latest `.apk`
-- **Windows** → download the latest `.zip`
-
-> Alpha builds may be unstable and incompatible between versions.
-
+> [!CAUTION]
+> Alpha builds may be unstable and incompatible between versions.<br> Use at own risk.
 ---
 
 ## Build from source
 
-### Requirements
-
-- [Flutter](https://flutter.dev/) installed and configured
-- A running Jellyfin server
-- Android Studio, NDK & SDK
-- Tools from Visual Studio
-
-### Clone & build
+> [!WARNING]
+> Flutter builds are discontinued. Use [Android Studio](https://developer.android.com/studio) to build and test.
 
 ```bash
 git clone https://github.com/rikkichy/Muufin.git
 ```
-```
-cd Muufin
-```
-```
-flutter pub get
-```
-### Android
-```bash
-flutter build apk --release
-```
-### Windows (will be removed soon)
-```bash
-flutter build windows --release
-```
-
 ---
 
 ## FAQ
 
-Q: Why are my song or album covers pixelated? <br>
-A: Muufin does not compress or downscale images. Low-quality covers usually come from the metadata provider chosen in your Jellyfin instance (MusicBrainz often supplies small or low-resolution images). We personally recommend using local images.
+**Q:**  Why are my song or album covers pixelated? <br>
+**A:** Muufin does not compress or downscale images. Low-quality covers usually come directly from **your instance.**
+> [!TIP]
+> Go to your browser, type your instance address and play a song. Click on the song cover on the mini player, then right click full song cover and choose "Copy image address"<br> You'll get a link like this: https://jf.example.local/Items/123123/Images/Primary?maxHeight=600&tag=123123&quality=90<br> Remove what's coming after ? and paste in your browser.<br> If image is pixelated, that's because you've downloaded a song with low-quality artwork embedded.
+
+**Q:** Muufin supports self-signed certs?<br>
+**A:** **Yes.** You can import your .crt or just disable TLS verification without importing anything.
 
