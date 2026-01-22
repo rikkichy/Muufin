@@ -18,9 +18,38 @@
   Project is in <strong>Alpha</strong>, things will break and features may change.
 </p>
 
-
+---
+## Screenshots
+<table align="center">
+  <tr>
+    <td align="center">
+      <img
+        src="https://github.com/rikkichy/assets/blob/main/Muufin/muufin_mainscreen.jpeg?raw=true"
+        alt="Muufin main screen"
+        width="220"
+      />
+      <br />
+      <strong>Library</strong>
+    </td>
+    <td align="center">
+      <img
+        src="https://github.com/rikkichy/assets/blob/main/Muufin/muufin_nowplaying.jpeg?raw=true"
+        alt="Muufin now playing screen"
+        width="220"
+      />
+      <br />
+      <strong>Now Playing</strong>
+    </td>
+  </tr>
+</table>
 
 ---
+## Download
+
+Head to the **[Releases](../../releases)** page and download the latest apk.
+
+> [!CAUTION]
+> Alpha builds may be unstable and incompatible between versions.<br> Use at own risk.
 
 ## Features
 - Material Expressive UI, both on Android and Windows
@@ -39,13 +68,7 @@
 - [ ] Internal and external lyrics support
 > [!IMPORTANT]
 > This list is not final, something may be removed/added or discontinued.
----
-## Download
 
-Head to the **[Releases](../../releases)** page and download the latest apk.
-
-> [!CAUTION]
-> Alpha builds may be unstable and incompatible between versions.<br> Use at own risk.
 ---
 
 ## Build from source
