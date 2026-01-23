@@ -19,7 +19,7 @@
 </p>
 
 ---
-## Screenshots
+## Showcase
 <table align="center">
   <tr>
     <td align="center">
