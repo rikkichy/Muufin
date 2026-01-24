@@ -18,8 +18,15 @@
   Project is in <strong>Alpha</strong>, things will break and features may change.
 </p>
 
+<p align="center">
+<img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/rikkichy/Muufin/total?style=for-the-badge&labelColor=2D3142&color=B0D7FF">
+<img alt="GitHub Actions Workflow Status" src="https://img.shields.io/github/actions/workflow/status/rikkichy/Muufin/main.yml?style=for-the-badge&labelColor=2D3142&color=B0D7FF">
+<img alt="GitHub License" src="https://img.shields.io/github/license/rikkichy/Muufin?style=for-the-badge&labelColor=2D3142&color=B0D7FF">
+</p>
+
 ---
-## Showcase
+
+<h2 align="center">Showcase</h2>
 <table align="center">
   <tr>
     <td align="center">
@@ -52,9 +59,9 @@ Head to the **[Releases](../../releases)** page and download the latest apk.
 > Alpha builds may be unstable and incompatible between versions.<br> Use at own risk.
 
 ## Features
-- Material Expressive UI, both on Android and Windows
+- Material Expressive UI
 - DirectPlay FLAC support
-- Playback Reporting, [LastFM support](https://github.com/jesseward/jellyfin-plugin-lastfm)
+- Playback Reporting (AKA Private Mode), [LastFM support](https://github.com/jesseward/jellyfin-plugin-lastfm)
 - Now Playing screen with playback controls
 - Global search across your music library
 
