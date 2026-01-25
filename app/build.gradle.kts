@@ -13,7 +13,7 @@ android {
         applicationId = "com.muufin.compose"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = 2
         versionName = "0.2.0"
 
         vectorDrawables {
