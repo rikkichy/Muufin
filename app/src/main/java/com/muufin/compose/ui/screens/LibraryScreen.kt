@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
+import com.muufin.compose.core.SettingsManager
 import com.muufin.compose.model.dto.BaseItemDto
 import com.muufin.compose.model.primaryImageTag
 import com.muufin.compose.model.subtitle
@@ -42,8 +43,9 @@ fun LibraryScreen(
     onOpenPlaylist: (String) -> Unit,
     onOpenPlayer: () -> Unit,
 ) {
-    
-    var tab by remember { mutableIntStateOf(0) }
+    val defaultTab by SettingsManager.defaultLibraryTab.collectAsState()
+    val libraryLayout by SettingsManager.libraryLayout.collectAsState()
+    var tab by remember(defaultTab) { mutableIntStateOf(defaultTab) }
 
     val sections = remember {
         listOf(
@@ -92,8 +94,8 @@ fun LibraryScreen(
         }
 
         when (tab) {
-            0 -> PlaylistsTab(repo = repo, onOpenPlaylist = onOpenPlaylist)
-            1 -> AlbumsTab(repo = repo, onOpenAlbum = onOpenAlbum)
+            0 -> PlaylistsTab(repo = repo, onOpenPlaylist = onOpenPlaylist, layout = libraryLayout)
+            1 -> AlbumsTab(repo = repo, onOpenAlbum = onOpenAlbum, layout = libraryLayout)
             2 -> ArtistsTab(repo = repo, onOpenArtist = onOpenArtist)
         }
     }
@@ -103,9 +105,11 @@ fun LibraryScreen(
 private fun AlbumsTab(
     repo: JellyfinRepository,
     onOpenAlbum: (String) -> Unit,
+    layout: Int,
 ) {
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
 
     val albums = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
@@ -123,7 +127,11 @@ private fun AlbumsTab(
         if (albums.isEmpty()) loadMore()
     }
 
-	val shouldLoadMore by remember { derivedStateOf { shouldLoadMoreGrid(gridState) } }
+	val shouldLoadMore by remember(layout) {
+		derivedStateOf {
+			if (layout == 0) shouldLoadMoreGrid(gridState) else shouldLoadMoreList(listState)
+		}
+	}
 	LaunchedEffect(shouldLoadMore) {
 		if (shouldLoadMore) {
 			loadMore()
@@ -131,32 +139,63 @@ private fun AlbumsTab(
 	}
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(160.dp),
-            state = gridState,
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(albums, key = { it.id }) { item ->
-                ItemCard(
-                    title = item.name,
-                    subtitle = item.subtitle(),
-                    artwork = item.artworkModel(),
-                    onClick = { onOpenAlbum(item.id) },
-                )
-            }
+        if (layout == 0) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
+                state = gridState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(albums, key = { it.id }) { item ->
+                    ItemCard(
+                        title = item.name,
+                        subtitle = item.subtitle(),
+                        artwork = item.artworkModel(),
+                        onClick = { onOpenAlbum(item.id) },
+                    )
+                }
 
-            if (isLoading) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator()
+                if (isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(albums, key = { it.id }) { item ->
+                    RowItem(
+                        title = item.name,
+                        subtitle = item.subtitle(),
+                        artwork = item.artworkModel(maxWidth = 256),
+                        onClick = { onOpenAlbum(item.id) },
+                    )
+                }
+
+                if (isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
@@ -245,9 +284,11 @@ private fun ArtistsTab(
 private fun PlaylistsTab(
     repo: JellyfinRepository,
     onOpenPlaylist: (String) -> Unit,
+    layout: Int,
 ) {
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
+    val listState = rememberLazyListState()
 
     val playlists = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
@@ -265,38 +306,73 @@ private fun PlaylistsTab(
         if (playlists.isEmpty()) loadMore()
     }
 
-	val shouldLoadMore by remember { derivedStateOf { shouldLoadMoreGrid(gridState) } }
+	val shouldLoadMore by remember(layout) {
+		derivedStateOf {
+			if (layout == 0) shouldLoadMoreGrid(gridState) else shouldLoadMoreList(listState)
+		}
+	}
 	LaunchedEffect(shouldLoadMore) {
 		if (shouldLoadMore) loadMore()
 	}
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(160.dp),
-            state = gridState,
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(playlists, key = { it.id }) { item ->
-                ItemCard(
-                    title = item.name,
-                    subtitle = item.subtitle(),
-                    artwork = item.artworkModel(),
-                    onClick = { onOpenPlaylist(item.id) },
-                )
-            }
+        if (layout == 0) {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(160.dp),
+                state = gridState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(playlists, key = { it.id }) { item ->
+                    ItemCard(
+                        title = item.name,
+                        subtitle = item.subtitle(),
+                        artwork = item.artworkModel(),
+                        onClick = { onOpenPlaylist(item.id) },
+                    )
+                }
 
-            if (isLoading) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator()
+                if (isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                items(playlists, key = { it.id }) { item ->
+                    RowItem(
+                        title = item.name,
+                        subtitle = item.subtitle(),
+                        artwork = item.artworkModel(maxWidth = 256),
+                        onClick = { onOpenPlaylist(item.id) },
+                    )
+                }
+
+                if (isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
