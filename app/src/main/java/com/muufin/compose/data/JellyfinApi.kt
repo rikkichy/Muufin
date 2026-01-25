@@ -13,6 +13,7 @@ import com.muufin.compose.model.dto.PlaybackStartInfo
 import com.muufin.compose.model.dto.PlaybackStopInfo
 import com.muufin.compose.model.dto.QuickConnectInitiateResponseDto
 import com.muufin.compose.model.dto.QuickConnectConnectResponseDto
+import com.muufin.compose.model.dto.LyricDto
 import com.muufin.compose.model.dto.UserDto
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -72,6 +73,11 @@ interface JellyfinApi {
         @Path("playlistId") playlistId: String,
         @QueryMap encoded: Map<String, String>,
     ): BaseItemQueryResultDto
+
+    @GET("Audio/{itemId}/Lyrics")
+    suspend fun getLyrics(
+        @Path("itemId") itemId: String,
+    ): LyricDto
 
     companion object {
         private val json = Json {

@@ -29,33 +29,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -79,8 +74,11 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import coil.compose.AsyncImage
 import com.muufin.compose.core.AuthManager
+import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
 import com.muufin.compose.core.PlaybackUris
+import com.muufin.compose.model.dto.LyricDto
+import com.muufin.compose.model.dto.LyricLine
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 import kotlin.math.roundToInt
@@ -150,12 +148,55 @@ fun PlayerScreen(
         stiffness = Spring.StiffnessLow,
     )
 
-    var showQueue by remember { mutableStateOf(false) }
+    val repo = remember { JellyfinRepository() }
+    val trackId = currentItem?.mediaId
+
+    var showLyrics by remember { mutableStateOf(false) }
+    var lyricsLoading by remember { mutableStateOf(false) }
+    var lyrics by remember { mutableStateOf<LyricDto?>(null) }
+
+    LaunchedEffect(trackId, auth.baseUrl, auth.accessToken) {
+        if (trackId.isNullOrBlank() || auth.baseUrl.isBlank()) {
+            lyrics = null
+            lyricsLoading = false
+            return@LaunchedEffect
+        }
+
+        lyricsLoading = true
+        lyrics = repo.getLyrics(trackId)
+        lyricsLoading = false
+    }
+
     var speedMenuExpanded by remember { mutableStateOf(false) }
 
     var sliderPos by remember { mutableStateOf<Float?>(null) }
     val duration = ui.durationMs.coerceAtLeast(0L)
     val position = ui.positionMs.coerceIn(0L, duration.takeIf { it > 0 } ?: Long.MAX_VALUE)
+
+    val lyricLines = lyrics?.lyrics?.filter { it.text.isNotBlank() } ?: emptyList()
+    val offsetMs = ticksToMs(lyrics?.metadata?.offset)
+    val isSynced = lyrics?.metadata?.isSynced ?: lyricLines.any { it.start != null }
+    val currentLineIndex = if (!isSynced) {
+        -1
+    } else {
+        lyricLines.indexOfLast { ln ->
+            val start = ln.start?.let { ticksToMs(it) + offsetMs } ?: Long.MAX_VALUE
+            start <= position
+        }
+    }
+
+    val lyricsListState = rememberLazyListState()
+
+    LaunchedEffect(showLyrics, currentLineIndex, trackId, lyricLines.size) {
+        if (!showLyrics) return@LaunchedEffect
+        if (lyricLines.isEmpty()) return@LaunchedEffect
+
+        if (currentLineIndex >= 0) {
+            lyricsListState.animateScrollToItem(currentLineIndex)
+        } else {
+            lyricsListState.scrollToItem(0)
+        }
+    }
 
     
     LaunchedEffect(position, duration) {
@@ -218,23 +259,35 @@ fun PlayerScreen(
 
             
             AnimatedContent(
-            targetState = artworkForUi,
+                targetState = showLyrics,
                 transitionSpec = {
-                    (scaleIn(initialScale = 0.96f, animationSpec = artTransitionSpec) + fadeIn())
-                        .togetherWith(scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut())
+                    (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) + scaleIn(initialScale = 0.98f, animationSpec = artTransitionSpec))
+                        .togetherWith(
+                            fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) + scaleOut(targetScale = 1.02f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy))
+                        )
                 },
-                label = "playerCoverArt",
-            ) { artwork ->
-                AsyncImage(
-                    model = artwork,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(MaterialTheme.shapes.extraLarge)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
-                    contentScale = ContentScale.Crop,
-                )
+                label = "playerCoverOrLyrics",
+            ) { show ->
+                if (show) {
+                    LyricsPanel(
+                        loading = lyricsLoading,
+                        lines = lyricLines,
+                        currentIndex = currentLineIndex,
+                        listState = lyricsListState,
+                        onLineClick = { line ->
+                            val startTicks = line.start
+                            if (startTicks != null) {
+                                val target = (ticksToMs(startTicks) + offsetMs).coerceAtLeast(0L)
+                                c.seekTo(target)
+                            }
+                        },
+                    )
+                } else {
+                    CoverPanel(
+                        artworkForUi = artworkForUi,
+                        artTransitionSpec = artTransitionSpec,
+                    )
+                }
             }
 
             
@@ -404,21 +457,18 @@ fun PlayerScreen(
                 FilledTonalIconButton(
                     onClick = {
                         haptics.tap()
-                        showQueue = true
+                        showLyrics = !showLyrics
                     },
                     modifier = Modifier.size(52.dp),
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = if (showLyrics) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (showLyrics) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                    ),
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = "Queue")
+                    Icon(Icons.Rounded.Lyrics, contentDescription = "Lyrics")
                 }
             }
         }
-    }
-
-    if (showQueue) {
-        QueueSheet(
-            controller = c,
-            onDismiss = { showQueue = false },
-        )
     }
 }
 
@@ -577,72 +627,92 @@ private fun RepeatActionButton(controller: Player, mode: Int) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun QueueSheet(
-    controller: Player,
-    onDismiss: () -> Unit,
+private fun CoverPanel(
+    artworkForUi: android.net.Uri?,
+    artTransitionSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float>,
 ) {
-    val haptics = rememberMuufinHaptics()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-    ) {
-        Column(
+    AnimatedContent(
+        targetState = artworkForUi,
+        transitionSpec = {
+            (scaleIn(initialScale = 0.96f, animationSpec = artTransitionSpec) + fadeIn())
+                .togetherWith(scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut())
+        },
+        label = "playerCoverArt",
+    ) { artwork ->
+        AsyncImage(
+            model = artwork,
+            contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
+                .aspectRatio(1f)
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+            contentScale = ContentScale.Crop,
+        )
+    }
+}
+
+@Composable
+private fun LyricsPanel(
+    loading: Boolean,
+    lines: List<LyricLine>,
+    currentIndex: Int,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    onLineClick: (LyricLine) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            androidx.compose.material3.CircularProgressIndicator()
+        } else if (lines.isEmpty()) {
             Text(
-                text = "Queue",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(vertical = 8.dp),
+                text = "No lyrics",
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(18.dp),
             )
-
+        } else {
             LazyColumn(
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth(),
+                state = listState,
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxSize(),
             ) {
-                itemsIndexed((0 until controller.mediaItemCount).toList(), key = { _, i -> controller.getMediaItemAt(i).mediaId }) { index, _ ->
-                    val item = controller.getMediaItemAt(index)
-                    val md = item.mediaMetadata
-                    val isCurrent = index == controller.currentMediaItemIndex
-
-                    ListItem(
-                        headlineContent = { Text(md.title?.toString().orEmpty(), maxLines = 1) },
-                        supportingContent = { Text(md.artist?.toString().orEmpty(), maxLines = 1) },
-                        leadingContent = {
-                            AsyncImage(
-                                model = md.artworkUri,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentScale = ContentScale.Crop,
-                            )
-                        },
-                        colors = ListItemDefaults.colors(
-                            containerColor = if (isCurrent) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
-                        ),
+                itemsIndexed(lines, key = { index, item -> "$index-${item.start ?: 0L}-${item.text}" }) { index, item ->
+                    val active = index == currentIndex
+                    val style = if (active) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall
+                    val color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    Text(
+                        text = item.text,
+                        style = style,
+                        textAlign = TextAlign.Center,
+                        color = color,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.large)
-                            .clickable {
-                                haptics.tap()
-                                controller.seekToDefaultPosition(index)
-                                controller.play()
-                                onDismiss()
+                            .clickable(enabled = item.start != null) {
+                                onLineClick(item)
                             },
                     )
-
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
                 }
             }
         }
     }
+}
+
+private fun ticksToMs(ticks: Long?): Long {
+    return if (ticks == null) 0L else ticks / 10_000L
 }
 
 private fun formatTime(ms: Long): String {

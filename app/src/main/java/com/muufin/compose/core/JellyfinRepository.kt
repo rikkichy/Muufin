@@ -1,8 +1,10 @@
 package com.muufin.compose.core
 
 import com.muufin.compose.data.JellyfinApi
+import com.muufin.compose.model.dto.LyricDto
 import com.muufin.compose.model.dto.BaseItemDto
 import com.muufin.compose.model.dto.UserDto
+import retrofit2.HttpException
 
 class JellyfinRepository {
     private fun api(): JellyfinApi {
@@ -115,5 +117,15 @@ class JellyfinRepository {
 
     suspend fun getCurrentUser(): UserDto {
         return api().getCurrentUser()
+    }
+
+    suspend fun getLyrics(itemId: String): LyricDto? {
+        return try {
+            api().getLyrics(itemId)
+        } catch (e: HttpException) {
+            null
+        } catch (e: Throwable) {
+            null
+        }
     }
 }
