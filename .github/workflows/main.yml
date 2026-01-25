@@ -35,13 +35,14 @@ jobs:
           echo "RELEASE_NAME=$NAME" >> $GITHUB_ENV
 
       - name: Decode keystore (release)
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "${RUNNER_TEMP}/keystore.jks"
+          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64 secret" && exit 1)
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "${RUNNER_TEMP}/keystore.jks"
           echo "ANDROID_KEYSTORE_PATH=${RUNNER_TEMP}/keystore.jks" >> $GITHUB_ENV
 
       - name: Build Release APK
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         env:
           ANDROID_KEYSTORE_PATH: ${{ env.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -50,17 +51,16 @@ jobs:
         run: ./gradlew :app:assembleRelease
 
       - name: Attest APK provenance
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: app/build/outputs/apk/release/*.apk
 
-      - name: Collect APKs
+      - name: Collect APK
         run: |
           mkdir -p dist
           cp -v app/build/outputs/apk/release/*.apk dist/
 
-      - name: Create draft release and upload assets
+      - name: Create draft release and upload asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
