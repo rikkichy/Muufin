@@ -12,6 +12,7 @@ jobs:
       contents: write
       id-token: write
       attestations: write
+      artifact-metadata: write
 
     steps:
       - name: Checkout
@@ -51,16 +52,18 @@ jobs:
         run: ./gradlew :app:assembleRelease
 
       - name: Attest APK provenance
+        id: attest
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: app/build/outputs/apk/release/*.apk
 
-      - name: Collect APK
+      - name: Collect APK + attestation bundle
         run: |
           mkdir -p dist
           cp -v app/build/outputs/apk/release/*.apk dist/
+          cp -v "${{ steps.attest.outputs.bundle-path }}" "dist/${{ env.RELEASE_TAG }}.intoto.jsonl"
 
-      - name: Create draft release and upload asset
+      - name: Create draft release and upload assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ env.RELEASE_TAG }}
@@ -69,4 +72,4 @@ jobs:
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --draft --title "$NAME"
 
-          gh release upload "$TAG" dist/*.apk --clobber
+          gh release upload "$TAG" dist/* --clobber
