@@ -29,10 +29,11 @@ jobs:
 
       - name: Generate release tag and name
         run: |
-          TAG=$(date -u +"%Y%m%d")
+          TAG="$(date -u +"%Y%m%d%H%M")"
           NAME="Muufin $(date -u +"%Y-%m-%d %H:%M UTC")"
           echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
           echo "RELEASE_NAME=$NAME" >> "$GITHUB_ENV"
+
 
       - name: Decode keystore (release)
         env:
