@@ -80,9 +80,6 @@ Head to the **[Releases](../../releases)** page and download the latest apk.
 
 ## Build from source
 
-> [!WARNING]
-> Flutter builds are discontinued. Use [Android Studio](https://developer.android.com/studio) to build and test.
-
 ```bash
 git clone https://github.com/rikkichy/Muufin.git
 ```
