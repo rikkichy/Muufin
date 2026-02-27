@@ -39,6 +39,31 @@ object HttpClients {
         return playerRef.get() ?: buildPlayerClient().also { playerRef.set(it) }
     }
 
+    fun buildValidationClient(
+        disableTls: Boolean,
+        customCaBase64: String,
+    ): OkHttpClient {
+        val builder = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(8, TimeUnit.SECONDS)
+
+        if (disableTls) {
+            val unsafe = unsafeTrustManager()
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, arrayOf<TrustManager>(unsafe), SecureRandom())
+            builder.sslSocketFactory(sslContext.socketFactory, unsafe)
+            builder.hostnameVerifier(HostnameVerifier { _, _ -> true })
+        } else if (customCaBase64.isNotBlank()) {
+            val tm = compositeTrustManagerFromBase64(customCaBase64)
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, arrayOf<TrustManager>(tm), SecureRandom())
+            builder.sslSocketFactory(sslContext.socketFactory, tm)
+        }
+
+        return builder.build()
+    }
+
     private fun buildApiClient(): OkHttpClient {
         return buildClient(
             acceptHeader = "application/json",

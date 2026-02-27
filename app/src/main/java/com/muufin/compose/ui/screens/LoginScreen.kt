@@ -1,38 +1,47 @@
 package com.muufin.compose.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.QrCode
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,17 +56,31 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.muufin.compose.core.AuthManager
+import com.muufin.compose.core.HttpClients
 import com.muufin.compose.core.JellyfinAuthorization
 import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.AuthState
 import com.muufin.compose.ui.util.rememberMuufinHaptics
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
+import retrofit2.HttpException
+import retrofit2.Retrofit
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 
 private enum class LoginStep {
     Instance,
+    ConnectionOptions,
     Credentials,
 }
 
@@ -71,6 +94,45 @@ private fun normalizeInstanceUrl(raw: String): String {
     }
 }
 
+private fun describeInstanceError(e: Throwable): String = when {
+    e is UnknownHostException ->
+        "Server not found. Check the URL for typos."
+    e is ConnectException ->
+        "Connection refused. Is the server running?"
+    e is SocketTimeoutException ->
+        "Connection timed out. The server may be unreachable."
+    e is SSLException || e.cause is SSLException ->
+        "SSL/TLS error. Try enabling \"Disable TLS Verification\" or import the server certificate."
+    e is HttpException && e.code() == 503 ->
+        "Server is starting up. Try again in a moment."
+    e is HttpException ->
+        "Unexpected response (HTTP ${e.code()}). Is this a Jellyfin server?"
+    e is kotlinx.serialization.SerializationException ||
+    e is IllegalArgumentException ->
+        "Not a Jellyfin server. Check the URL."
+    else ->
+        e.message ?: "Could not reach the server."
+}
+
+private suspend fun validateInstance(
+    baseUrl: String,
+    disableTls: Boolean,
+    customCaBase64: String,
+) {
+    val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    val client = HttpClients.buildValidationClient(disableTls, customCaBase64)
+    val retrofit = Retrofit.Builder()
+        .baseUrl("$baseUrl/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+    val api = retrofit.create(JellyfinApi::class.java)
+    withContext(Dispatchers.IO) {
+        api.getPublicSystemInfo()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     onSignedIn: () -> Unit,
@@ -92,6 +154,7 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var quickConnectOpen by remember { mutableStateOf(false) }
+    val shakeOffset = remember { Animatable(0f) }
 
     val certImported = auth.customCaBase64.isNotBlank()
 
@@ -109,7 +172,40 @@ fun LoginScreen(
     fun goToCredentials() {
         haptics.tap()
         error = null
-        step = LoginStep.Credentials
+        isLoading = true
+
+        val baseUrl = normalizeInstanceUrl(serverInput)
+
+        scope.launch {
+            runCatching {
+                validateInstance(
+                    baseUrl = baseUrl,
+                    disableTls = disableTls,
+                    customCaBase64 = auth.customCaBase64,
+                )
+            }.onSuccess {
+                step = LoginStep.Credentials
+            }.onFailure { e ->
+                error = describeInstanceError(e)
+                haptics.reject()
+                shakeOffset.animateTo(
+                    targetValue = 0f,
+                    animationSpec = keyframes {
+                        durationMillis = 400
+                        0f at 0
+                        (-18f) at 50
+                        18f at 100
+                        (-14f) at 150
+                        14f at 200
+                        (-8f) at 250
+                        8f at 300
+                        (-4f) at 350
+                        0f at 400
+                    },
+                )
+            }
+            isLoading = false
+        }
     }
 
     fun goBackToInstance() {
@@ -118,112 +214,177 @@ fun LoginScreen(
         step = LoginStep.Instance
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        topBar = {
+            when (step) {
+                LoginStep.Instance -> {
+                    TopAppBar(title = { Text("Muufin") })
+                }
+                LoginStep.ConnectionOptions -> {
+                    TopAppBar(
+                        title = { Text("Configure connection") },
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                haptics.tap()
+                                step = LoginStep.Instance
+                            }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                    )
+                }
+                LoginStep.Credentials -> {
+                    TopAppBar(
+                        title = { Text("Sign in") },
+                        navigationIcon = {
+                            IconButton(onClick = { goBackToInstance() }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                    )
+                }
+            }
+        },
+    ) { padding ->
         val scrollState = rememberScrollState()
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .displayCutoutPadding()
+                .padding(padding)
                 .imePadding()
                 .verticalScroll(scrollState)
-                
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             when (step) {
                 LoginStep.Instance -> {
-                    Text(
-                        text = "Welcome to Muufin!",
-                        style = MaterialTheme.typography.headlineLarge,
-                    )
                     Text(
                         text = "Add your instance to get started",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
 
-                    if (error != null) {
-                        Text(error!!, color = MaterialTheme.colorScheme.error)
-                    }
-
                     OutlinedTextField(
                         value = serverInput,
-                        onValueChange = { serverInput = it },
+                        onValueChange = {
+                            serverInput = it
+                            if (error != null) error = null
+                        },
                         label = { Text("URL") },
                         placeholder = { Text("jf.example.com") },
                         singleLine = true,
+                        isError = error != null,
+                        supportingText = if (error != null) {
+                            { Text(error!!) }
+                        } else null,
                         shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .offset { IntOffset(shakeOffset.value.toInt(), 0) },
                     )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Switch(
-                            checked = disableTls,
-                            onCheckedChange = {
-                                haptics.toggle()
-                                disableTls = it
-                                AuthManager.updateDisableTls(it)
-                            },
-                        )
-                        Column(
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Text("Disable TLS Verification")
-                            Text(
-                                "Only enable for self-signed / local servers.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    OutlinedButton(
-                        enabled = !isLoading,
-                        onClick = {
-                            haptics.tap()
-                            importCertLauncher.launch(arrayOf("*/*"))
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Rounded.Lock, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (certImported) "Certificate imported" else "Import certificate")
-                    }
-
-                    Spacer(Modifier.height(8.dp))
 
                     Button(
                         enabled = !isLoading && serverInput.trim().isNotBlank(),
                         onClick = { goToCredentials() },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("Next")
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(if (isLoading) "Checking…" else "Next")
+                    }
+
+                    OutlinedButton(
+                        enabled = !isLoading,
+                        onClick = {
+                            haptics.tap()
+                            step = LoginStep.ConnectionOptions
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(Icons.Rounded.Settings, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Configure connection")
+                    }
+                }
+
+                LoginStep.ConnectionOptions -> {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text("TLS / SSL", style = MaterialTheme.typography.titleMedium)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Disable TLS Verification")
+                                    Text(
+                                        "Only enable for self-signed or local servers.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Spacer(Modifier.size(12.dp))
+                                Switch(
+                                    checked = disableTls,
+                                    onCheckedChange = {
+                                        haptics.toggle()
+                                        disableTls = it
+                                        AuthManager.updateDisableTls(it)
+                                    },
+                                )
+                            }
+
+                            HorizontalDivider()
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Custom certificate")
+                                    Text(
+                                        if (certImported) "Certificate imported."
+                                        else "Import a .crt file for servers with a custom CA.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Spacer(Modifier.size(12.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        haptics.tap()
+                                        importCertLauncher.launch(arrayOf("*/*"))
+                                    },
+                                ) {
+                                    Icon(Icons.Rounded.Lock, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (certImported) "Replace" else "Import")
+                                }
+                            }
+                        }
                     }
                 }
 
                 LoginStep.Credentials -> {
-                    
-                    IconButton(onClick = { goBackToInstance() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-
-                    Text(
-                        text = "Sign in",
-                        style = MaterialTheme.typography.headlineLarge,
-                    )
-
-                    if (error != null) {
-                        Text(error!!, color = MaterialTheme.colorScheme.error)
-                    }
-
                     OutlinedTextField(
                         value = username,
                         onValueChange = { username = it },
@@ -238,6 +399,10 @@ fun LoginScreen(
                         onValueChange = { password = it },
                         label = { Text("Password") },
                         singleLine = true,
+                        isError = error != null,
+                        supportingText = if (error != null) {
+                            { Text(error!!) }
+                        } else null,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
                         visualTransformation = PasswordVisualTransformation(),

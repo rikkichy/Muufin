@@ -11,6 +11,7 @@ import com.muufin.compose.model.dto.BaseItemQueryResultDto
 import com.muufin.compose.model.dto.PlaybackProgressInfo
 import com.muufin.compose.model.dto.PlaybackStartInfo
 import com.muufin.compose.model.dto.PlaybackStopInfo
+import com.muufin.compose.model.dto.PublicSystemInfoDto
 import com.muufin.compose.model.dto.QuickConnectInitiateResponseDto
 import com.muufin.compose.model.dto.QuickConnectConnectResponseDto
 import com.muufin.compose.model.dto.LyricDto
@@ -21,6 +22,9 @@ import retrofit2.Retrofit
 import retrofit2.http.*
 
 interface JellyfinApi {
+
+    @GET("System/Info/Public")
+    suspend fun getPublicSystemInfo(): PublicSystemInfoDto
 
     @POST("Users/AuthenticateByName")
     suspend fun authenticateByName(

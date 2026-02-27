@@ -21,3 +21,13 @@ data class UserDto(
     @SerialName("Id") val id: String? = null,
     @SerialName("Name") val name: String? = null,
 )
+
+@Serializable
+data class PublicSystemInfoDto(
+    @SerialName("LocalAddress") val localAddress: String? = null,
+    @SerialName("ServerName") val serverName: String? = null,
+    @SerialName("Version") val version: String? = null,
+    @SerialName("ProductName") val productName: String? = null,
+    @SerialName("Id") val id: String? = null,
+    @SerialName("StartupWizardCompleted") val startupWizardCompleted: Boolean? = null,
+)
