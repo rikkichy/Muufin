@@ -1,6 +1,8 @@
 package com.muufin.compose.ui.screens
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -11,13 +13,22 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -56,7 +67,7 @@ fun LibraryScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -69,7 +80,7 @@ fun LibraryScreen(
                 ToggleButton(
                     checked = isSelected,
                     onCheckedChange = { checked ->
-                        
+
                         if (checked) tab = value
                     },
                     modifier = Modifier
@@ -102,12 +113,37 @@ fun LibraryScreen(
 }
 
 @Composable
+private fun rememberPullToSearchConnection(
+    showSearch: Boolean,
+    onTrigger: () -> Unit,
+): NestedScrollConnection {
+    val showState = rememberUpdatedState(showSearch)
+    val triggerState = rememberUpdatedState(onTrigger)
+    return remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                if (available.y > 0f && source == NestedScrollSource.UserInput && !showState.value) {
+                    triggerState.value()
+                }
+                return Offset.Zero
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 private fun AlbumsTab(
     repo: JellyfinRepository,
     onOpenAlbum: (String) -> Unit,
     layout: Int,
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = rememberMuufinHaptics()
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
 
@@ -138,85 +174,146 @@ private fun AlbumsTab(
 		}
 	}
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (layout == 0) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                state = gridState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.fillMaxSize(),
+    var query by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchKey by remember { mutableIntStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val pullToSearch = rememberPullToSearchConnection(showSearch) {
+        haptics.tap()
+        searchKey++
+        showSearch = true
+    }
+
+    val displayAlbums = if (query.isBlank()) albums else albums.filter {
+        it.name?.contains(query, ignoreCase = true) == true
+    }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.animateContentSize(
+                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                ),
             ) {
-                items(albums, key = { it.id }) { item ->
-                    ItemCard(
-                        title = item.name,
-                        subtitle = item.subtitle(),
-                        artwork = item.artworkModel(),
-                        onClick = { onOpenAlbum(item.id) },
+                if (showSearch) {
+                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .focusRequester(focusRequester),
+                        placeholder = { Text("Search albums...") },
+                        shape = RoundedCornerShape(20.dp),
+                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                query = ""
+                                showSearch = false
+                                keyboardController?.hide()
+                            }) {
+                                Icon(Icons.Rounded.Close, null)
+                            }
+                        },
+                        singleLine = true,
                     )
                 }
+            }
 
-                if (isLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator()
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (layout == 0) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(160.dp),
+                        state = gridState,
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(displayAlbums, key = { it.id }) { item ->
+                            ItemCard(
+                                title = item.name,
+                                subtitle = item.subtitle(),
+                                artwork = item.artworkModel(),
+                                onClick = { onOpenAlbum(item.id) },
+                            )
+                        }
+
+                        if (isLoading && albums.isNotEmpty()) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(displayAlbums, key = { it.id }) { item ->
+                            RowItem(
+                                title = item.name,
+                                subtitle = item.subtitle(),
+                                artwork = item.artworkModel(maxWidth = 256),
+                                onClick = { onOpenAlbum(item.id) },
+                            )
+                        }
+
+                        if (isLoading && albums.isNotEmpty()) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(albums, key = { it.id }) { item ->
-                    RowItem(
-                        title = item.name,
-                        subtitle = item.subtitle(),
-                        artwork = item.artworkModel(maxWidth = 256),
-                        onClick = { onOpenAlbum(item.id) },
-                    )
-                }
 
-                if (isLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator()
-                        }
+                if (isLoading && albums.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
                     }
                 }
-            }
-        }
 
-        if (!isLoading && albums.isEmpty()) {
-            EmptyState(
-                title = "No albums",
-                subtitle = "Nothing to show yet.",
-                onRefresh = { scope.launch { endReached = false; albums.clear(); loadMore() } },
-            )
+                if (!isLoading && albums.isEmpty()) {
+                    EmptyState(
+                        title = "No albums",
+                        subtitle = "Nothing to show yet.",
+                        onRefresh = { scope.launch { endReached = false; albums.clear(); loadMore() } },
+                    )
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ArtistsTab(
     repo: JellyfinRepository,
     onOpenArtist: (String) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = rememberMuufinHaptics()
     val listState = rememberLazyListState()
 
     val artists = remember { mutableStateListOf<BaseItemDto>() }
@@ -240,46 +337,106 @@ private fun ArtistsTab(
 		if (shouldLoadMore) loadMore()
 	}
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            items(artists, key = { it.id }) { item ->
-                RowItem(
-                    title = item.name,
-                    subtitle = item.subtitle(),
-                    artwork = item.artworkModel(maxWidth = 256),
-                    onClick = { onOpenArtist(item.id) },
-                )
-            }
+    var query by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchKey by remember { mutableIntStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val pullToSearch = rememberPullToSearchConnection(showSearch) {
+        haptics.tap()
+        searchKey++
+        showSearch = true
+    }
 
-            if (isLoading) {
-                item {
-                    Row(
+    val displayArtists = if (query.isBlank()) artists else artists.filter {
+        it.name?.contains(query, ignoreCase = true) == true
+    }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.animateContentSize(
+                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                ),
+            ) {
+                if (showSearch) {
+                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.Center,
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .focusRequester(focusRequester),
+                        placeholder = { Text("Search artists...") },
+                        shape = RoundedCornerShape(20.dp),
+                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                query = ""
+                                showSearch = false
+                                keyboardController?.hide()
+                            }) {
+                                Icon(Icons.Rounded.Close, null)
+                            }
+                        },
+                        singleLine = true,
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(displayArtists, key = { it.id }) { item ->
+                        RowItem(
+                            title = item.name,
+                            subtitle = item.subtitle(),
+                            artwork = item.artworkModel(maxWidth = 256),
+                            onClick = { onOpenArtist(item.id) },
+                        )
+                    }
+
+                    if (isLoading && artists.isNotEmpty()) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                    }
+                }
+
+                if (isLoading && artists.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator()
                     }
                 }
-            }
-        }
 
-        if (!isLoading && artists.isEmpty()) {
-            EmptyState(
-                title = "No artists",
-                subtitle = "Nothing to show yet.",
-                onRefresh = { scope.launch { endReached = false; artists.clear(); loadMore() } },
-            )
+                if (!isLoading && artists.isEmpty()) {
+                    EmptyState(
+                        title = "No artists",
+                        subtitle = "Nothing to show yet.",
+                        onRefresh = { scope.launch { endReached = false; artists.clear(); loadMore() } },
+                    )
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PlaylistsTab(
     repo: JellyfinRepository,
@@ -287,6 +444,7 @@ private fun PlaylistsTab(
     layout: Int,
 ) {
     val scope = rememberCoroutineScope()
+    val haptics = rememberMuufinHaptics()
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
 
@@ -315,75 +473,134 @@ private fun PlaylistsTab(
 		if (shouldLoadMore) loadMore()
 	}
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (layout == 0) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(160.dp),
-                state = gridState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.fillMaxSize(),
+    var query by remember { mutableStateOf("") }
+    var showSearch by remember { mutableStateOf(false) }
+    var searchKey by remember { mutableIntStateOf(0) }
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val pullToSearch = rememberPullToSearchConnection(showSearch) {
+        haptics.tap()
+        searchKey++
+        showSearch = true
+    }
+
+    val displayPlaylists = if (query.isBlank()) playlists else playlists.filter {
+        it.name?.contains(query, ignoreCase = true) == true
+    }
+
+    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.animateContentSize(
+                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                ),
             ) {
-                items(playlists, key = { it.id }) { item ->
-                    ItemCard(
-                        title = item.name,
-                        subtitle = item.subtitle(),
-                        artwork = item.artworkModel(),
-                        onClick = { onOpenPlaylist(item.id) },
+                if (showSearch) {
+                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .focusRequester(focusRequester),
+                        placeholder = { Text("Search playlists...") },
+                        shape = RoundedCornerShape(20.dp),
+                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                query = ""
+                                showSearch = false
+                                keyboardController?.hide()
+                            }) {
+                                Icon(Icons.Rounded.Close, null)
+                            }
+                        },
+                        singleLine = true,
                     )
                 }
+            }
 
-                if (isLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator()
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (layout == 0) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(160.dp),
+                        state = gridState,
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(displayPlaylists, key = { it.id }) { item ->
+                            ItemCard(
+                                title = item.name,
+                                subtitle = item.subtitle(),
+                                artwork = item.artworkModel(),
+                                onClick = { onOpenPlaylist(item.id) },
+                            )
+                        }
+
+                        if (isLoading && playlists.isNotEmpty()) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(displayPlaylists, key = { it.id }) { item ->
+                            RowItem(
+                                title = item.name,
+                                subtitle = item.subtitle(),
+                                artwork = item.artworkModel(maxWidth = 256),
+                                onClick = { onOpenPlaylist(item.id) },
+                            )
+                        }
+
+                        if (isLoading && playlists.isNotEmpty()) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
                         }
                     }
                 }
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                items(playlists, key = { it.id }) { item ->
-                    RowItem(
-                        title = item.name,
-                        subtitle = item.subtitle(),
-                        artwork = item.artworkModel(maxWidth = 256),
-                        onClick = { onOpenPlaylist(item.id) },
-                    )
-                }
 
-                if (isLoading) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                        ) {
-                            CircularProgressIndicator()
-                        }
+                if (isLoading && playlists.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
                     }
                 }
-            }
-        }
 
-        if (!isLoading && playlists.isEmpty()) {
-            EmptyState(
-                title = "No playlists",
-                subtitle = "Nothing to show yet.",
-                onRefresh = { scope.launch { endReached = false; playlists.clear(); loadMore() } },
-            )
+                if (!isLoading && playlists.isEmpty()) {
+                    EmptyState(
+                        title = "No playlists",
+                        subtitle = "Nothing to show yet.",
+                        onRefresh = { scope.launch { endReached = false; playlists.clear(); loadMore() } },
+                    )
+                }
+            }
         }
     }
 }

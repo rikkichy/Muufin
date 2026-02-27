@@ -119,6 +119,10 @@ class JellyfinRepository {
         return api().getCurrentUser()
     }
 
+    suspend fun getPublicSystemInfo(): com.muufin.compose.model.dto.PublicSystemInfoDto {
+        return api().getPublicSystemInfo()
+    }
+
     suspend fun getLyrics(itemId: String): LyricDto? {
         return try {
             api().getLyrics(itemId)

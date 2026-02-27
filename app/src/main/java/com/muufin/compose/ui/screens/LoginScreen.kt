@@ -64,6 +64,8 @@ import com.muufin.compose.core.HttpClients
 import com.muufin.compose.core.JellyfinAuthorization
 import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.AuthState
+import com.muufin.compose.model.dto.PublicSystemInfoDto
+import com.muufin.compose.model.dto.QuickConnectAuthRequestDto
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -118,7 +120,7 @@ private suspend fun validateInstance(
     baseUrl: String,
     disableTls: Boolean,
     customCaBase64: String,
-) {
+): PublicSystemInfoDto {
     val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     val client = HttpClients.buildValidationClient(disableTls, customCaBase64)
     val retrofit = Retrofit.Builder()
@@ -127,7 +129,7 @@ private suspend fun validateInstance(
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
     val api = retrofit.create(JellyfinApi::class.java)
-    withContext(Dispatchers.IO) {
+    return withContext(Dispatchers.IO) {
         api.getPublicSystemInfo()
     }
 }
@@ -155,6 +157,7 @@ fun LoginScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var quickConnectOpen by remember { mutableStateOf(false) }
     val shakeOffset = remember { Animatable(0f) }
+    var serverInfo by remember { mutableStateOf<PublicSystemInfoDto?>(null) }
 
     val certImported = auth.customCaBase64.isNotBlank()
 
@@ -183,7 +186,8 @@ fun LoginScreen(
                     disableTls = disableTls,
                     customCaBase64 = auth.customCaBase64,
                 )
-            }.onSuccess {
+            }.onSuccess { info ->
+                serverInfo = info
                 step = LoginStep.Credentials
             }.onFailure { e ->
                 error = describeInstanceError(e)
@@ -369,15 +373,36 @@ fun LoginScreen(
                                     )
                                 }
                                 Spacer(Modifier.size(12.dp))
-                                OutlinedButton(
-                                    onClick = {
-                                        haptics.tap()
-                                        importCertLauncher.launch(arrayOf("*/*"))
-                                    },
-                                ) {
-                                    Icon(Icons.Rounded.Lock, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(if (certImported) "Replace" else "Import")
+                                if (certImported) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                haptics.tap()
+                                                importCertLauncher.launch(arrayOf("*/*"))
+                                            },
+                                        ) {
+                                            Text("Replace")
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                haptics.tap()
+                                                AuthManager.clearImportedCertificate()
+                                            },
+                                        ) {
+                                            Text("Remove")
+                                        }
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            haptics.tap()
+                                            importCertLauncher.launch(arrayOf("*/*"))
+                                        },
+                                    ) {
+                                        Icon(Icons.Rounded.Lock, contentDescription = null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Import")
+                                    }
                                 }
                             }
                         }
@@ -385,6 +410,17 @@ fun LoginScreen(
                 }
 
                 LoginStep.Credentials -> {
+                    serverInfo?.let { info ->
+                        val label = listOfNotNull(info.serverName, info.version).joinToString(" · ")
+                        if (label.isNotBlank()) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
                         value = username,
                         onValueChange = { username = it },
@@ -591,18 +627,26 @@ private fun QuickConnectDialog(
         )
 
         val api = JellyfinApi.create(tmpState)
+        val authHeader = JellyfinAuthorization.buildFrom(tmpState, includeToken = false)
 
         while (true) {
             delay(1000)
 
-            val res = runCatching { api.checkQuickConnect(secret = sec) }.getOrNull() ?: continue
+            val poll = runCatching { api.checkQuickConnect(secret = sec) }.getOrNull() ?: continue
 
-            if (
-                res.authenticated == true &&
-                !res.accessToken.isNullOrBlank() &&
-                !res.resolvedUserId.isNullOrBlank()
-            ) {
-                onAuthenticated(base, res.resolvedUserId!!, res.accessToken!!)
+            if (poll.authenticated == true) {
+                val auth = runCatching {
+                    api.authenticateWithQuickConnect(
+                        body = QuickConnectAuthRequestDto(secret = sec),
+                        authorizationOverride = authHeader,
+                    )
+                }.getOrNull()
+
+                if (auth != null && !auth.accessToken.isNullOrBlank() && !auth.user?.id.isNullOrBlank()) {
+                    onAuthenticated(base, auth.user!!.id!!, auth.accessToken!!)
+                } else {
+                    error = "Approved but authentication failed."
+                }
                 break
             }
         }

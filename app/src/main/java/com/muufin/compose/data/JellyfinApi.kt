@@ -12,6 +12,7 @@ import com.muufin.compose.model.dto.PlaybackProgressInfo
 import com.muufin.compose.model.dto.PlaybackStartInfo
 import com.muufin.compose.model.dto.PlaybackStopInfo
 import com.muufin.compose.model.dto.PublicSystemInfoDto
+import com.muufin.compose.model.dto.QuickConnectAuthRequestDto
 import com.muufin.compose.model.dto.QuickConnectInitiateResponseDto
 import com.muufin.compose.model.dto.QuickConnectConnectResponseDto
 import com.muufin.compose.model.dto.LyricDto
@@ -39,6 +40,12 @@ interface JellyfinApi {
 
     @GET("QuickConnect/Connect")
     suspend fun checkQuickConnect(@Query("secret") secret: String): QuickConnectConnectResponseDto
+
+    @POST("Users/AuthenticateWithQuickConnect")
+    suspend fun authenticateWithQuickConnect(
+        @Body body: QuickConnectAuthRequestDto,
+        @Header("Authorization") authorizationOverride: String,
+    ): AuthResultDto
 
     @GET("Users/Me")
     suspend fun getCurrentUser(): UserDto

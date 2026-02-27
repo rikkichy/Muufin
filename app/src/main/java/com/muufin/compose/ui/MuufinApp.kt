@@ -1,5 +1,11 @@
 package com.muufin.compose.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -7,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -20,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -72,7 +77,6 @@ fun MuufinApp() {
     val controller by rememberMediaController(enabled = auth.isSignedIn)
     val playerUi by rememberPlayerUiState(controller)
 
-    val homeTab = rememberSaveable { mutableIntStateOf(0) }
 
     var showPlayer by rememberSaveable { mutableStateOf(false) }
 
@@ -84,9 +88,7 @@ fun MuufinApp() {
     val backStackEntry by nav.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route?.substringBefore("/")
 
-    
-    
-    val hideBottomChrome = currentRoute == Routes.LOGIN || currentRoute == Routes.SETTINGS
+    val hideBottomChrome = currentRoute == Routes.LOGIN
     val showBottomChrome = auth.isSignedIn && !hideBottomChrome
 
     MuufinTheme {
@@ -106,15 +108,13 @@ fun MuufinApp() {
                             
                             NavigationBar {
                                 NavigationBarItem(
-                                    selected = homeTab.intValue == 0,
+                                    selected = currentRoute == Routes.HOME,
                                     onClick = {
                                         haptics.tap()
-                                        homeTab.intValue = 0
                                         if (currentRoute != Routes.HOME) {
                                             nav.navigate(Routes.HOME) {
-                                                popUpTo(Routes.HOME) { saveState = true }
+                                                popUpTo(Routes.HOME) { inclusive = true }
                                                 launchSingleTop = true
-                                                restoreState = true
                                             }
                                         }
                                     },
@@ -122,20 +122,18 @@ fun MuufinApp() {
                                     label = { Text("Library") },
                                 )
                                 NavigationBarItem(
-                                    selected = homeTab.intValue == 1,
+                                    selected = currentRoute == Routes.SETTINGS,
                                     onClick = {
                                         haptics.tap()
-                                        homeTab.intValue = 1
-                                        if (currentRoute != Routes.HOME) {
-                                            nav.navigate(Routes.HOME) {
-                                                popUpTo(Routes.HOME) { saveState = true }
+                                        if (currentRoute != Routes.SETTINGS) {
+                                            nav.navigate(Routes.SETTINGS) {
+                                                popUpTo(Routes.HOME)
                                                 launchSingleTop = true
-                                                restoreState = true
                                             }
                                         }
                                     },
-                                    icon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-                                    label = { Text("Search") },
+                                    icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                                    label = { Text("Settings") },
                                 )
                             }
                         }
@@ -146,6 +144,10 @@ fun MuufinApp() {
                     navController = nav,
                     startDestination = if (auth.isSignedIn) Routes.HOME else Routes.LOGIN,
                     modifier = Modifier.padding(padding),
+                    enterTransition = { fadeIn(tween(210, delayMillis = 90)) },
+                    exitTransition = { fadeOut(tween(90)) },
+                    popEnterTransition = { fadeIn(tween(210, delayMillis = 90)) },
+                    popExitTransition = { fadeOut(tween(90)) },
                 ) {
                     composable(Routes.LOGIN) {
                         LoginScreen(
@@ -160,19 +162,22 @@ fun MuufinApp() {
                     composable(Routes.HOME) {
                         HomeScreen(
                             repo = repo,
-                            tab = homeTab.intValue,
                             onOpenAlbum = { nav.navigate("${Routes.ALBUM}/$it") },
                             onOpenArtist = { nav.navigate("${Routes.ARTIST}/$it") },
                             onOpenPlaylist = { nav.navigate("${Routes.PLAYLIST}/$it") },
                             onOpenPlayer = { showPlayer = true },
-                            onOpenSettings = { nav.navigate(Routes.SETTINGS) },
                         )
                     }
 
                     composable(Routes.SETTINGS) {
                         SettingsScreen(
                             repo = repo,
-                            onBack = { nav.popBackStack() },
+                            onBack = {
+                                nav.navigate(Routes.HOME) {
+                                    popUpTo(Routes.HOME) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            },
                             onSignedOut = {
                                 nav.navigate(Routes.LOGIN) {
                                     popUpTo(Routes.HOME) { inclusive = true }
@@ -183,7 +188,11 @@ fun MuufinApp() {
 
                     composable(
                         route = "${Routes.ALBUM}/{id}",
-                        arguments = listOf(navArgument("id") { type = NavType.StringType })
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        enterTransition = { slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300)) },
+                        exitTransition = { fadeOut(tween(150)) },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { slideOutHorizontally(tween(300)) { it / 4 } + fadeOut(tween(300)) },
                     ) {
                         val id = it.arguments?.getString("id") ?: return@composable
                         AlbumDetailScreen(
@@ -198,7 +207,11 @@ fun MuufinApp() {
 
                     composable(
                         route = "${Routes.ARTIST}/{id}",
-                        arguments = listOf(navArgument("id") { type = NavType.StringType })
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        enterTransition = { slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300)) },
+                        exitTransition = { fadeOut(tween(150)) },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { slideOutHorizontally(tween(300)) { it / 4 } + fadeOut(tween(300)) },
                     ) {
                         val id = it.arguments?.getString("id") ?: return@composable
                         ArtistDetailScreen(
@@ -214,7 +227,11 @@ fun MuufinApp() {
 
                     composable(
                         route = "${Routes.PLAYLIST}/{id}",
-                        arguments = listOf(navArgument("id") { type = NavType.StringType })
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }),
+                        enterTransition = { slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300)) },
+                        exitTransition = { fadeOut(tween(150)) },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { slideOutHorizontally(tween(300)) { it / 4 } + fadeOut(tween(300)) },
                     ) {
                         val id = it.arguments?.getString("id") ?: return@composable
                         PlaylistDetailScreen(

@@ -12,10 +12,9 @@ data class QuickConnectInitiateResponseDto(
 @Serializable
 data class QuickConnectConnectResponseDto(
     @SerialName("Authenticated") val authenticated: Boolean? = null,
-    @SerialName("AccessToken") val accessToken: String? = null,
-    
-    @SerialName("Id") val id: String? = null,
-    @SerialName("UserId") val userId: String? = null,
-) {
-    val resolvedUserId: String? get() = id ?: userId
-}
+)
+
+@Serializable
+data class QuickConnectAuthRequestDto(
+    @SerialName("Secret") val secret: String,
+)

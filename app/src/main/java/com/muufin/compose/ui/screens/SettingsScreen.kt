@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
@@ -52,10 +54,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.muufin.compose.core.AuthManager
+import com.muufin.compose.core.BuildInfo
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
 import com.muufin.compose.core.SettingsManager
+import com.muufin.compose.model.dto.PublicSystemInfoDto
 import com.muufin.compose.ui.util.rememberMuufinHaptics
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -75,24 +82,16 @@ fun SettingsScreen(
     val libraryLayout by SettingsManager.libraryLayout.collectAsState()
 
     var userName by remember { mutableStateOf<String?>(null) }
+    var serverInfo by remember { mutableStateOf<PublicSystemInfoDto?>(null) }
     LaunchedEffect(auth.userId, auth.accessToken, auth.baseUrl) {
         userName = runCatching { repo.getCurrentUser().name }.getOrNull()
+        serverInfo = runCatching { repo.getPublicSystemInfo() }.getOrNull()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            haptics.tap()
-                            onBack()
-                        },
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
             )
         }
     ) { padding ->
@@ -104,9 +103,95 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("Account", style = MaterialTheme.typography.titleMedium)
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            val avatarUrl = remember(auth.baseUrl, auth.userId) {
+                                if (auth.baseUrl.isNotBlank() && auth.userId.isNotBlank()) {
+                                    JellyfinUrls.userImage(auth, auth.userId, maxWidth = 128)
+                                } else null
+                            }
+
+                            if (avatarUrl != null) {
+                                AsyncImage(
+                                    model = avatarUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape),
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(userName ?: "Signed in", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    auth.baseUrl,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        HorizontalDivider()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Playback reporting")
+                                Text(
+                                    "Muufin will tell your Jellyfin instance what you're playing at the moment. Useful for such plugins as LastFM.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.size(12.dp))
+                            Switch(
+                                checked = playbackReporting,
+                                onCheckedChange = { enabled ->
+                                    haptics.toggle()
+                                    scope.launch { SettingsManager.setEnablePlaybackReporting(enabled) }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        Button(
+                            onClick = {
+                                haptics.tap()
+                                scope.launch {
+                                    AuthManager.signOut()
+                                    onSignedOut()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
+                            Spacer(Modifier.size(8.dp))
+                            Text("Sign out")
+                        }
+                    }
+                }
+
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
                 ) {
@@ -266,92 +351,45 @@ fun SettingsScreen(
                     }
                 }
 
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text("Account", style = MaterialTheme.typography.titleMedium)
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            val avatarUrl = remember(auth.baseUrl, auth.userId) {
-                                if (auth.baseUrl.isNotBlank() && auth.userId.isNotBlank()) {
-                                    JellyfinUrls.userImage(auth, auth.userId, maxWidth = 128)
-                                } else null
-                            }
-
-                            if (avatarUrl != null) {
-                                AsyncImage(
-                                    model = avatarUrl,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape),
-                                )
-                            }
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(userName ?: "Signed in", style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    auth.baseUrl,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-
-                        HorizontalDivider()
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Playback reporting")
-                                Text(
-                                    "Muufin will tell your Jellyfin instance what you're playing at the moment. Useful for such plugins as LastFM.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.size(12.dp))
-                            Switch(
-                                checked = playbackReporting,
-                                onCheckedChange = { enabled ->
-                                    haptics.toggle()
-                                    scope.launch { SettingsManager.setEnablePlaybackReporting(enabled) }
-                                }
-                            )
-                        }
-
-                        HorizontalDivider()
-
-                        Button(
-                            onClick = {
-                                haptics.tap()
-                                scope.launch {
-                                    AuthManager.signOut()
-                                    onSignedOut()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Icon(Icons.AutoMirrored.Rounded.Logout, contentDescription = null)
-                            Spacer(Modifier.size(8.dp))
-                            Text("Sign out")
-                        }
-                    }
+                val context = LocalContext.current
+                val appVersion = remember { BuildInfo.appVersion(context) }
+                val serverLine = remember(serverInfo) {
+                    listOfNotNull(serverInfo?.serverName, serverInfo?.version).joinToString(" · ")
                 }
 
-                Spacer(Modifier.height(4.dp))
+                val uriHandler = LocalUriHandler.current
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Muufin $appVersion",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (serverLine.isNotBlank()) {
+                        Text(
+                            text = serverLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = {
+                            haptics.tap()
+                            uriHandler.openUri("https://ko-fi.com/Rikkichy")
+                        },
+                    ) {
+                        Text("Support project on Ko-Fi")
+                    }
+                }
             }
         }
     }
