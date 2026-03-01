@@ -185,8 +185,12 @@ private fun AlbumsTab(
         showSearch = true
     }
 
-    val displayAlbums = if (query.isBlank()) albums else albums.filter {
-        it.name?.contains(query, ignoreCase = true) == true
+    val displayAlbums by remember {
+        derivedStateOf {
+            if (query.isBlank()) albums.toList() else albums.filter {
+                it.name?.contains(query, ignoreCase = true) == true
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
@@ -265,7 +269,7 @@ private fun AlbumsTab(
                             RowItem(
                                 title = item.name,
                                 subtitle = item.subtitle(),
-                                artwork = item.artworkModel(maxWidth = 256),
+                                artwork = item.artworkModel(maxWidth = 168),
                                 onClick = { onOpenAlbum(item.id) },
                             )
                         }
@@ -348,8 +352,12 @@ private fun ArtistsTab(
         showSearch = true
     }
 
-    val displayArtists = if (query.isBlank()) artists else artists.filter {
-        it.name?.contains(query, ignoreCase = true) == true
+    val displayArtists by remember {
+        derivedStateOf {
+            if (query.isBlank()) artists.toList() else artists.filter {
+                it.name?.contains(query, ignoreCase = true) == true
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
@@ -396,7 +404,7 @@ private fun ArtistsTab(
                         RowItem(
                             title = item.name,
                             subtitle = item.subtitle(),
-                            artwork = item.artworkModel(maxWidth = 256),
+                            artwork = item.artworkModel(maxWidth = 168),
                             onClick = { onOpenArtist(item.id) },
                         )
                     }
@@ -484,8 +492,12 @@ private fun PlaylistsTab(
         showSearch = true
     }
 
-    val displayPlaylists = if (query.isBlank()) playlists else playlists.filter {
-        it.name?.contains(query, ignoreCase = true) == true
+    val displayPlaylists by remember {
+        derivedStateOf {
+            if (query.isBlank()) playlists.toList() else playlists.filter {
+                it.name?.contains(query, ignoreCase = true) == true
+            }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
@@ -564,7 +576,7 @@ private fun PlaylistsTab(
                             RowItem(
                                 title = item.name,
                                 subtitle = item.subtitle(),
-                                artwork = item.artworkModel(maxWidth = 256),
+                                artwork = item.artworkModel(maxWidth = 168),
                                 onClick = { onOpenPlaylist(item.id) },
                             )
                         }
@@ -636,7 +648,7 @@ private fun EmptyState(
     }
 }
 
-private fun BaseItemDto.artworkModel(maxWidth: Int = 512): String? {
+private fun BaseItemDto.artworkModel(maxWidth: Int = 320): String? {
     val s = AuthManager.state.value
     if (s.baseUrl.isBlank()) return null
     val tag = primaryImageTag()

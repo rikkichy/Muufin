@@ -1,13 +1,17 @@
 package com.muufin.compose.core
 
+import android.content.Context
 import com.muufin.compose.BuildConfig
+import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.AuthState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import okhttp3.Cache
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.logging.HttpLoggingInterceptor
+import java.io.File
 import java.security.SecureRandom
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
@@ -24,11 +28,19 @@ import javax.net.ssl.X509TrustManager
 object HttpClients {
     private val apiRef = AtomicReference<OkHttpClient?>()
     private val playerRef = AtomicReference<OkHttpClient?>()
+    private val imageRef = AtomicReference<OkHttpClient?>()
+    private var httpCache: Cache? = null
 
-    
+    fun init(context: Context) {
+        val cacheDir = File(context.cacheDir, "http_cache")
+        httpCache = Cache(cacheDir, 25L * 1024 * 1024) // 25 MB
+    }
+
     fun rebuild() {
         apiRef.set(buildApiClient())
         playerRef.set(buildPlayerClient())
+        imageRef.set(null)
+        JellyfinApi.invalidate()
     }
 
     fun apiOkHttp(): OkHttpClient {
@@ -37,6 +49,14 @@ object HttpClients {
 
     fun playerOkHttp(): OkHttpClient {
         return playerRef.get() ?: buildPlayerClient().also { playerRef.set(it) }
+    }
+
+    fun imageOkHttp(): OkHttpClient {
+        return imageRef.get() ?: buildClient(
+            acceptHeader = "image/*",
+            forPlayback = false,
+            useCache = false,
+        ).also { imageRef.set(it) }
     }
 
     fun buildValidationClient(
@@ -84,6 +104,7 @@ object HttpClients {
         acceptHeader: String,
         forPlayback: Boolean,
         readTimeoutSeconds: Long = 30,
+        useCache: Boolean = true,
     ): OkHttpClient {
         val state: AuthState = runBlocking { AuthManager.state.first() }
 
@@ -92,6 +113,7 @@ object HttpClients {
             .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(AuthHeaderInterceptor(acceptHeader = acceptHeader, forPlayback = forPlayback))
+        if (useCache) httpCache?.let { builder.cache(it) }
 
         if (BuildConfig.DEBUG) {
             builder.addInterceptor(

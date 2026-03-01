@@ -112,7 +112,7 @@ object PlayerManager {
                 state = auth,
                 itemId = artworkItemId,
                 tag = primaryTag,
-                maxWidth = 512,
+                maxWidth = 480,
             )
         }.getOrNull()
             

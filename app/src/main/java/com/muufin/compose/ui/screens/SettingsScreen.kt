@@ -52,7 +52,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.BuildInfo
 import com.muufin.compose.core.JellyfinRepository

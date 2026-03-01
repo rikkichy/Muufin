@@ -13,7 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
@@ -165,7 +165,7 @@ private fun ArtistHeader(artist: BaseItemDto?) {
     }
 }
 
-private fun BaseItemDto.albumArtworkModel(maxWidth: Int = 512): String? {
+private fun BaseItemDto.albumArtworkModel(maxWidth: Int = 320): String? {
     val s = AuthManager.state.value
     if (s.baseUrl.isBlank()) return null
     val tag = primaryImageTag()

@@ -3,20 +3,24 @@ package com.muufin.compose
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.os.Build
 import androidx.core.content.getSystemService
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.util.DebugLogger
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
+import coil3.util.DebugLogger
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.HttpClients
 import com.muufin.compose.core.PlayerManager
 import com.muufin.compose.core.SettingsManager
 import com.muufin.compose.player.PlaybackService
 
-class MuufinApplication : Application(), ImageLoaderFactory {
+class MuufinApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
+        HttpClients.init(this)
         AuthManager.init(this)
         SettingsManager.init(this)
         PlayerManager.init(this)
@@ -36,10 +40,13 @@ class MuufinApplication : Application(), ImageLoaderFactory {
         mgr.createNotificationChannel(channel)
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
-            .okHttpClient { HttpClients.apiOkHttp() }
-            .logger(DebugLogger())
+    override fun newImageLoader(context: Context): ImageLoader {
+        return ImageLoader.Builder(context)
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { HttpClients.imageOkHttp() }))
+            }
+            .crossfade(true)
+            .apply { if (BuildConfig.DEBUG) logger(DebugLogger()) }
             .build()
     }
 }

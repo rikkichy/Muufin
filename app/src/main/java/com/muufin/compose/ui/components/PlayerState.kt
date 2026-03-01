@@ -3,6 +3,7 @@ package com.muufin.compose.ui.components
 import androidx.compose.runtime.*
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import com.muufin.compose.core.PlaybackUris
 import kotlinx.coroutines.delay
 
 data class PlayerUiState(
@@ -15,6 +16,8 @@ data class PlayerUiState(
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val hasQueue: Boolean = false,
+    val coverItemId: String = "",
+    val coverTag: String? = null,
 )
 
 @Composable
@@ -42,6 +45,7 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
 
                 override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
                     val md = mediaItem?.mediaMetadata
+                    val tag = mediaItem?.localConfiguration?.tag as? PlaybackUris
                     state.value = state.value.copy(
                         title = md?.title?.toString().orEmpty(),
                         artist = md?.artist?.toString().orEmpty(),
@@ -50,6 +54,16 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                         shuffleEnabled = c.shuffleModeEnabled,
                         repeatMode = c.repeatMode,
                         hasQueue = c.mediaItemCount > 0,
+                        coverItemId = tag?.artworkItemId ?: mediaItem?.mediaId.orEmpty(),
+                        coverTag = tag?.artworkTag,
+                    )
+                }
+
+                override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+                    state.value = state.value.copy(
+                        title = mediaMetadata.title?.toString().orEmpty(),
+                        artist = mediaMetadata.artist?.toString().orEmpty(),
+                        artworkUri = mediaMetadata.artworkUri,
                     )
                 }
 
@@ -65,8 +79,9 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
 
             c.addListener(listener)
 
-            
+
             val item = c.currentMediaItem
+            val initTag = item?.localConfiguration?.tag as? PlaybackUris
             state.value = state.value.copy(
                 title = item?.mediaMetadata?.title?.toString().orEmpty(),
                 artist = item?.mediaMetadata?.artist?.toString().orEmpty(),
@@ -76,6 +91,8 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                 shuffleEnabled = c.shuffleModeEnabled,
                 repeatMode = c.repeatMode,
                 hasQueue = c.mediaItemCount > 0,
+                coverItemId = initTag?.artworkItemId ?: item?.mediaId.orEmpty(),
+                coverTag = initTag?.artworkTag,
             )
 
             onDispose { c.removeListener(listener) }
@@ -85,11 +102,10 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
     LaunchedEffect(controller) {
         val c = controller ?: return@LaunchedEffect
         while (true) {
-            state.value = state.value.copy(
-                positionMs = c.currentPosition,
-                durationMs = c.duration.coerceAtLeast(0L),
-                hasQueue = c.mediaItemCount > 0,
-            )
+            val pos = c.currentPosition
+            if (pos != state.value.positionMs) {
+                state.value = state.value.copy(positionMs = pos)
+            }
             delay(500)
         }
     }

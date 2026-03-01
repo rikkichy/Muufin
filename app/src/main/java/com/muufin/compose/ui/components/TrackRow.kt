@@ -19,7 +19,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import coil3.size.Size
+import androidx.compose.ui.platform.LocalContext
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 
 @Composable
@@ -75,7 +79,11 @@ fun TrackRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     AsyncImage(
-                        model = leadingImageUrl,
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(leadingImageUrl)
+                            .crossfade(true)
+                            .size(128)
+                            .build(),
                         contentDescription = leadingImageContentDescription,
                         modifier = Modifier.fillMaxSize(),
                     )

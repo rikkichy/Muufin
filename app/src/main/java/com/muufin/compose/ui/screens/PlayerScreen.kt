@@ -72,11 +72,12 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
-import com.muufin.compose.core.PlaybackUris
 import com.muufin.compose.model.dto.LyricDto
 import com.muufin.compose.model.dto.LyricLine
 import com.muufin.compose.ui.components.PlayerUiState
@@ -110,17 +111,14 @@ fun PlayerScreen(
     val config = LocalConfiguration.current
     val density = LocalDensity.current
 
+    val coverItemId = ui.coverItemId.ifBlank { null }
+    val coverTag = ui.coverTag
+
     val currentItem = c.currentMediaItem
-    val playbackTag = currentItem?.localConfiguration?.tag as? PlaybackUris
-    val coverItemId = playbackTag?.artworkItemId ?: currentItem?.mediaId
-    val coverTag = playbackTag?.artworkTag
 
     val coverMaxWidth = remember(config, density) {
-        
         val coverDp = (config.screenWidthDp - 48).coerceAtLeast(0).dp
-        val px = with(density) { coverDp.toPx() }
-        
-        (px * 2f).roundToInt().coerceIn(512, 2000)
+        with(density) { coverDp.toPx() }.roundToInt().coerceIn(480, 1080)
     }
 
     val hiResArtworkUri = remember(auth.baseUrl, coverItemId, coverTag, coverMaxWidth) {
@@ -133,8 +131,7 @@ fun PlayerScreen(
                     itemId = coverItemId,
                     tag = coverTag,
                     maxWidth = coverMaxWidth,
-                    quality = 95,
-                    format = "Webp",
+                    quality = 90,
                 )
             )
         }
@@ -217,28 +214,18 @@ fun PlayerScreen(
             .fillMaxHeight(),
     ) {
         
-        AnimatedContent(
-            targetState = artworkForUi,
-            transitionSpec = {
-                (fadeIn(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
-                        scaleIn(initialScale = 1.05f, animationSpec = artTransitionSpec))
-                    .togetherWith(
-                        fadeOut(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy)) +
-                            scaleOut(targetScale = 0.98f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy))
-                    )
-            },
-            label = "playerBgArt",
-        ) { artwork ->
-            AsyncImage(
-                model = artwork,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .blur(60.dp),
-                contentScale = ContentScale.Crop,
-                alpha = 0.28f,
-            )
-        }
+        AsyncImage(
+            model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                .data(artworkForUi)
+                .crossfade(true)
+                .build(),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .blur(60.dp),
+            contentScale = ContentScale.Crop,
+            alpha = 0.28f,
+        )
 
         Box(
             modifier = Modifier
@@ -643,7 +630,10 @@ private fun CoverPanel(
         label = "playerCoverArt",
     ) { artwork ->
         AsyncImage(
-            model = artwork,
+            model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                .data(artwork)
+                .crossfade(true)
+                .build(),
             contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()

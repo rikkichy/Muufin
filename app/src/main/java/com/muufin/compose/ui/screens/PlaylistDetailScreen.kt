@@ -30,7 +30,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
@@ -90,6 +90,7 @@ fun PlaylistDetailScreen(
         }
     }
 
+    val indexById = remember(tracks) { tracks.withIndex().associate { (i, t) -> t.id to i } }
     val displayTracks = if (query.isBlank()) tracks else tracks.filter {
         it.name?.contains(query, ignoreCase = true) == true ||
             it.artists.any { a -> a.contains(query, ignoreCase = true) }
@@ -233,9 +234,9 @@ fun PlaylistDetailScreen(
                         )
                     }
 
+                    val s = AuthManager.state.value
                     itemsIndexed(displayTracks, key = { _, it -> it.id }) { _, item ->
-                        val originalIndex = tracks.indexOf(item)
-                        val s = AuthManager.state.value
+                        val originalIndex = indexById[item.id] ?: 0
                         val primaryTag = item.primaryImageTag()
                         val coverItemId = remember(item.id, item.albumId, primaryTag) {
                             if (!primaryTag.isNullOrBlank()) item.id else item.albumId ?: item.id
@@ -247,7 +248,7 @@ fun PlaylistDetailScreen(
                                 state = s,
                                 itemId = coverItemId,
                                 tag = if (coverItemId == item.id) primaryTag else null,
-                                maxWidth = 256,
+                                maxWidth = 64,
                             )
                         }
                         TrackRow(
