@@ -16,18 +16,22 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -249,10 +253,19 @@ fun MuufinApp() {
             
             
             if (auth.isSignedIn && showPlayer) {
-                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                val density = LocalDensity.current
+                val sheetState = remember {
+                    SheetState(
+                        skipPartiallyExpanded = true,
+                        initialValue = SheetValue.Expanded,
+                        positionalThreshold = { with(density) { 56.dp.toPx() } },
+                        velocityThreshold = { with(density) { 125.dp.toPx() } },
+                    )
+                }
                 ModalBottomSheet(
                     onDismissRequest = { showPlayer = false },
                     sheetState = sheetState,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ) {
                     PlayerScreen(
                         controller = controller,

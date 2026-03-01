@@ -31,6 +31,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.size.Size
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
@@ -40,8 +42,11 @@ import com.muufin.compose.model.durationLabel
 import com.muufin.compose.model.primaryImageTag
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.components.TrackRow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import androidx.media3.session.MediaController
+import coil3.imageLoader
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 
@@ -57,6 +62,7 @@ fun PlaylistDetailScreen(
 ) {
     val haptics = rememberMuufinHaptics()
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var playlist by remember { mutableStateOf<BaseItemDto?>(null) }
     var tracks by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
@@ -103,6 +109,30 @@ fun PlaylistDetailScreen(
         val t = runCatching { repo.getPlaylistTracks(playlistId) }.getOrNull()
         playlist = p
         tracks = t.orEmpty()
+
+        // Pre-warm Coil memory cache for visible tracks (parallel decode)
+        val auth = AuthManager.state.value
+        if (auth.baseUrl.isNotBlank()) {
+            val loader = context.imageLoader
+            t?.take(15)?.map { item ->
+                async {
+                    val tag = item.primaryImageTag()
+                    val itemId = if (!tag.isNullOrBlank()) item.id else item.albumId ?: item.id
+                    val url = JellyfinUrls.itemImage(
+                        state = auth,
+                        itemId = itemId,
+                        tag = if (itemId == item.id) tag else null,
+                        maxWidth = 64,
+                    )
+                    runCatching {
+                        loader.execute(
+                            ImageRequest.Builder(context).data(url).size(128).build()
+                        )
+                    }
+                }
+            }?.awaitAll()
+        }
+
         isLoading = false
         if (p == null) error = "Failed to load playlist"
     }

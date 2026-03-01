@@ -20,4 +20,19 @@ data class BaseItemDto(
     @SerialName("IndexNumber") val indexNumber: Int? = null,
     @SerialName("RunTimeTicks") val runTimeTicks: Long? = null,
     @SerialName("ImageTags") val imageTags: Map<String, String> = emptyMap(),
+    @SerialName("MediaStreams") val mediaStreams: List<MediaStreamDto>? = null,
+)
+
+@Serializable
+data class MediaStreamDto(
+    @SerialName("Codec") val codec: String? = null,
+    @SerialName("Profile") val profile: String? = null,
+    @SerialName("Type") val type: String? = null,
+    @SerialName("Channels") val channels: Int? = null,
+    @SerialName("ChannelLayout") val channelLayout: String? = null,
+    @SerialName("SampleRate") val sampleRate: Int? = null,
+    @SerialName("BitRate") val bitRate: Int? = null,
+    @SerialName("BitDepth") val bitDepth: Int? = null,
+    @SerialName("AudioSpatialFormat") val audioSpatialFormat: String? = null,
+    @SerialName("Language") val language: String? = null,
 )

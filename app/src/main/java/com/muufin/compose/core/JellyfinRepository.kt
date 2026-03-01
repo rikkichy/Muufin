@@ -3,6 +3,7 @@ package com.muufin.compose.core
 import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.dto.LyricDto
 import com.muufin.compose.model.dto.BaseItemDto
+import com.muufin.compose.model.dto.MediaStreamDto
 import com.muufin.compose.model.dto.UserDto
 import retrofit2.HttpException
 
@@ -121,6 +122,17 @@ class JellyfinRepository {
 
     suspend fun getPublicSystemInfo(): com.muufin.compose.model.dto.PublicSystemInfoDto {
         return api().getPublicSystemInfo()
+    }
+
+    suspend fun getItemMediaStreams(itemId: String): List<MediaStreamDto>? {
+        return try {
+            val s = AuthManager.state.value
+            api().getItemWithMediaStreams(itemId = itemId, userId = s.userId).mediaStreams
+        } catch (e: HttpException) {
+            null
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     suspend fun getLyrics(itemId: String): LyricDto? {

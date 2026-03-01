@@ -18,7 +18,7 @@ object JellyfinUrls {
         tag: String? = null,
         maxWidth: Int? = null,
         quality: Int? = null,
-        format: String? = null,
+        format: String? = "Jpg",
     ): String {
         val base = state.baseUrl.trim().removeSuffix("/")
         val sb = StringBuilder()

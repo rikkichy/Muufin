@@ -326,26 +326,59 @@ fun SettingsScreen(
                             Text("Playback", style = MaterialTheme.typography.titleMedium)
                         }
 
-                        Row(
+                        Column(
                             modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Lossless DirectPlay")
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text("Player Mode")
                                 Text(
-                                    "Disables compatibility layer so you can play FLAC/ALAC without transcoding and compression. If something will fail, Muufin will try use HLS transcoding.",
+                                    "How Muufin streams audio from your server.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            Spacer(Modifier.size(12.dp))
-                            Switch(
-                                checked = preferLossless,
-                                onCheckedChange = { enabled ->
-                                    haptics.toggle()
-                                    scope.launch { SettingsManager.setPreferLosslessDirectPlay(enabled) }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                ToggleButton(
+                                    checked = !preferLossless,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            haptics.toggle()
+                                            scope.launch { SettingsManager.setPreferLosslessDirectPlay(false) }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),
+                                ) {
+                                    Text("Compatibility", maxLines = 1)
                                 }
+                                ToggleButton(
+                                    checked = preferLossless,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            haptics.toggle()
+                                            scope.launch { SettingsManager.setPreferLosslessDirectPlay(true) }
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
+                                ) {
+                                    Text("Quality", maxLines = 1)
+                                }
+                            }
+
+                            Text(
+                                text = if (preferLossless)
+                                    "Streams original files (FLAC, ALAC) without transcoding. Falls back to HLS if playback fails."
+                                else
+                                    "Transcodes audio to MP3 via HLS for maximum device compatibility.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }

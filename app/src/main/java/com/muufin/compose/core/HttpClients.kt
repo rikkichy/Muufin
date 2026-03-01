@@ -32,7 +32,7 @@ object HttpClients {
     private var httpCache: Cache? = null
 
     fun init(context: Context) {
-        val cacheDir = File(context.cacheDir, "http_cache")
+        val cacheDir = File(context.filesDir, "http_cache")
         httpCache = Cache(cacheDir, 25L * 1024 * 1024) // 25 MB
     }
 
@@ -55,7 +55,7 @@ object HttpClients {
         return imageRef.get() ?: buildClient(
             acceptHeader = "image/*",
             forPlayback = false,
-            useCache = false,
+            forceCacheSeconds = 604_800, // 7 days — URL tag param handles invalidation
         ).also { imageRef.set(it) }
     }
 
@@ -88,6 +88,7 @@ object HttpClients {
         return buildClient(
             acceptHeader = "application/json",
             forPlayback = false,
+            forceCacheSeconds = 300, // 5 min — covers force-close/reopen
         )
     }
 
@@ -105,6 +106,7 @@ object HttpClients {
         forPlayback: Boolean,
         readTimeoutSeconds: Long = 30,
         useCache: Boolean = true,
+        forceCacheSeconds: Int = 0,
     ): OkHttpClient {
         val state: AuthState = runBlocking { AuthManager.state.first() }
 
@@ -114,6 +116,17 @@ object HttpClients {
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(AuthHeaderInterceptor(acceptHeader = acceptHeader, forPlayback = forPlayback))
         if (useCache) httpCache?.let { builder.cache(it) }
+        if (forceCacheSeconds > 0) {
+            builder.addNetworkInterceptor { chain ->
+                val response = chain.proceed(chain.request())
+                response.newBuilder()
+                    .header("Cache-Control", "public, max-age=$forceCacheSeconds")
+                    .removeHeader("Pragma")
+                    .removeHeader("Vary")
+                    .removeHeader("Expires")
+                    .build()
+            }
+        }
 
         if (BuildConfig.DEBUG) {
             builder.addInterceptor(

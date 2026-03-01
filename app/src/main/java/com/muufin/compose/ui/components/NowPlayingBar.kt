@@ -29,9 +29,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.media3.session.MediaController
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.request.crossfade
-import androidx.compose.ui.platform.LocalContext
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 
 @Composable
@@ -96,10 +93,7 @@ fun NowPlayingBar(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(state.artworkUri)
-                        .crossfade(true)
-                        .build(),
+                    model = state.artworkUri,
                     contentDescription = null,
                     modifier = Modifier
                         .size(52.dp)

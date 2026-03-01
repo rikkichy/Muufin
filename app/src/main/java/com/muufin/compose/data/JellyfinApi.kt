@@ -73,6 +73,14 @@ interface JellyfinApi {
         @Query("enableImages") enableImages: Boolean = true,
     ): BaseItemDto
 
+    @GET("Items/{itemId}")
+    suspend fun getItemWithMediaStreams(
+        @Path("itemId") itemId: String,
+        @Query("userId") userId: String,
+        @Query("fields") fields: String = "MediaStreams",
+        @Query("enableImages") enableImages: Boolean = false,
+    ): BaseItemDto
+
     @GET("Users/{userId}/Items")
     suspend fun getUserItems(
         @Path("userId") userId: String,

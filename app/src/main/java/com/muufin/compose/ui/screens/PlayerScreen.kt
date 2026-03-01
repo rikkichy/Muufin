@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -42,6 +43,8 @@ import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledIconButton
@@ -51,6 +54,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -80,6 +84,7 @@ import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
 import com.muufin.compose.model.dto.LyricDto
 import com.muufin.compose.model.dto.LyricLine
+import com.muufin.compose.model.dto.MediaStreamDto
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 import kotlin.math.roundToInt
@@ -152,16 +157,22 @@ fun PlayerScreen(
     var lyricsLoading by remember { mutableStateOf(false) }
     var lyrics by remember { mutableStateOf<LyricDto?>(null) }
 
+    var showAudioInfo by remember { mutableStateOf(false) }
+    var audioMediaStream by remember { mutableStateOf<MediaStreamDto?>(null) }
+
     LaunchedEffect(trackId, auth.baseUrl, auth.accessToken) {
         if (trackId.isNullOrBlank() || auth.baseUrl.isBlank()) {
             lyrics = null
             lyricsLoading = false
+            audioMediaStream = null
             return@LaunchedEffect
         }
 
         lyricsLoading = true
         lyrics = repo.getLyrics(trackId)
         lyricsLoading = false
+        val streams = repo.getItemMediaStreams(trackId)
+        audioMediaStream = streams?.firstOrNull { it.type == "Audio" }
     }
 
     var speedMenuExpanded by remember { mutableStateOf(false) }
@@ -203,10 +214,10 @@ fun PlayerScreen(
         }
     }
 
-    val qualityText = remember(c.currentTracks) { audioQualityText(c) }
+    val qualityText = audioMediaStream?.codec?.uppercase()
 
     
-    val overlayColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
+    val overlayColor = MaterialTheme.colorScheme.surface
 
     Box(
         modifier = modifier
@@ -337,35 +348,50 @@ fun PlayerScreen(
                 valueRange = 0f..(duration.coerceAtLeast(1L).toFloat()),
             )
 
-            Row(
+            Box(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
+                contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    formatTime(position),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                Spacer(Modifier.weight(1f))
-
-                if (!qualityText.isNullOrBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
                     Text(
-                        text = qualityText,
+                        formatTime(position),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        formatTime(duration),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
 
-                Text(
-                    formatTime(duration),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!qualityText.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.small)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clickable { showAudioInfo = true }
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = qualityText,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            Icons.Rounded.Info,
+                            contentDescription = "Audio info",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
-
-            Spacer(Modifier.height(4.dp))
 
             
             Row(
@@ -456,6 +482,14 @@ fun PlayerScreen(
                 }
             }
         }
+    }
+
+    if (showAudioInfo) {
+        AudioInfoDialog(
+            mediaStream = audioMediaStream,
+            player = c,
+            onDismiss = { showAudioInfo = false },
+        )
     }
 }
 
@@ -713,31 +747,82 @@ private fun formatTime(ms: Long): String {
 }
 
 private fun audioQualityText(player: Player): String? {
+    val format = getExoPlayerFormat(player) ?: return null
+    return format.sampleMimeType
+        ?.substringAfterLast("/")
+        ?.uppercase()
+}
+
+private fun getExoPlayerFormat(player: Player): androidx.media3.common.Format? {
     val groups = player.currentTracks.groups
     val audioGroup = groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO && it.isSelected }
         ?: groups.firstOrNull { it.type == C.TRACK_TYPE_AUDIO }
         ?: return null
-
     val selectedIndex = (0 until audioGroup.length).firstOrNull { audioGroup.isTrackSelected(it) } ?: 0
-    val format = audioGroup.getTrackFormat(selectedIndex)
+    return audioGroup.getTrackFormat(selectedIndex)
+}
 
-    val sampleRate = format.sampleRate.takeIf { it > 0 }
-    val channels = format.channelCount.takeIf { it > 0 }
-    val bitDepth = when (format.pcmEncoding) {
+@Composable
+private fun AudioInfoDialog(
+    mediaStream: MediaStreamDto?,
+    player: Player,
+    onDismiss: () -> Unit,
+) {
+    val format = remember(player.currentTracks) { getExoPlayerFormat(player) }
+
+    // Merge: prefer Jellyfin API data, fall back to ExoPlayer
+    val codec = mediaStream?.codec?.uppercase()
+        ?: format?.sampleMimeType?.substringAfterLast("/")?.uppercase()
+    val profile = mediaStream?.profile
+    val bitDepth = mediaStream?.bitDepth ?: when (format?.pcmEncoding) {
         C.ENCODING_PCM_16BIT -> 16
         C.ENCODING_PCM_24BIT -> 24
         C.ENCODING_PCM_32BIT -> 32
         else -> null
     }
+    val sampleRate = mediaStream?.sampleRate ?: format?.sampleRate?.takeIf { it > 0 }
+    val channels = mediaStream?.channels ?: format?.channelCount?.takeIf { it > 0 }
+    val channelLayout = mediaStream?.channelLayout
+    val bitRate = mediaStream?.bitRate ?: format?.bitrate?.takeIf { it > 0 }
+    val spatialFormat = mediaStream?.audioSpatialFormat?.takeIf { it != "None" }
+    val language = mediaStream?.language
 
-    
-    if (sampleRate == null && channels == null && bitDepth == null) return null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+        title = { Text("Audio Info") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val codecDisplay = if (profile != null) "$codec ($profile)" else codec
+                codecDisplay?.let { InfoRow("Codec", it) }
+                bitDepth?.let { InfoRow("Bit Depth", "${it}-bit") }
+                sampleRate?.let { InfoRow("Sample Rate", "${"%.1f".format(it / 1000f)} kHz") }
+                val chDisplay = if (channelLayout != null) "$channels ($channelLayout)" else "$channels"
+                channels?.let { InfoRow("Channels", chDisplay) }
+                bitRate?.let { InfoRow("Bitrate", "${it / 1000} kbps") }
+                spatialFormat?.let { InfoRow("Spatial", it) }
+                language?.let { InfoRow("Language", it) }
+            }
+        },
+    )
+}
 
-    val parts = buildList {
-        if (bitDepth != null) add("${bitDepth}-bit")
-        if (sampleRate != null) add("${"%.1f".format(sampleRate / 1000f)} kHz")
-        if (channels != null) add("${channels} ch")
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
-
-    return parts.joinToString(" • ")
 }

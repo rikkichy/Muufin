@@ -8,7 +8,10 @@ import android.os.Build
 import androidx.core.content.getSystemService
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.disk.DiskCache
+import coil3.disk.directory
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.CachePolicy
 import coil3.request.crossfade
 import coil3.util.DebugLogger
 import com.muufin.compose.core.AuthManager
@@ -45,7 +48,15 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { HttpClients.imageOkHttp() }))
             }
-            .crossfade(true)
+            .diskCache {
+                DiskCache.Builder()
+                    .directory(context.filesDir.resolve("coil_cache"))
+                    .maxSizeBytes(50L * 1024 * 1024) // 50 MB
+                    .build()
+            }
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .crossfade(false)
             .apply { if (BuildConfig.DEBUG) logger(DebugLogger()) }
             .build()
     }
