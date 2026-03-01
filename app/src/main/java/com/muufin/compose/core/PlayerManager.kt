@@ -19,6 +19,8 @@ import java.nio.charset.StandardCharsets
 import com.muufin.compose.player.PlaybackService
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
@@ -26,6 +28,9 @@ object PlayerManager {
     private const val TAG = "PlayerManager"
 
     private lateinit var appContext: Context
+
+    private val _queueSourceId = MutableStateFlow("")
+    val queueSourceId: StateFlow<String> = _queueSourceId
 
     private val executor = Executors.newSingleThreadExecutor()
 
@@ -94,7 +99,12 @@ object PlayerManager {
         }
     }
 
+    fun setQueueSource(id: String) {
+        _queueSourceId.value = id
+    }
+
     suspend fun stopPlayback() {
+        _queueSourceId.value = ""
         runCatching {
             val c = controller()
             c.stop()

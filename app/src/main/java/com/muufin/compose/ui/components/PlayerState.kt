@@ -16,6 +16,7 @@ data class PlayerUiState(
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val hasQueue: Boolean = false,
+    val mediaId: String = "",
     val coverItemId: String = "",
     val coverTag: String? = null,
 )
@@ -54,6 +55,7 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                         shuffleEnabled = c.shuffleModeEnabled,
                         repeatMode = c.repeatMode,
                         hasQueue = c.mediaItemCount > 0,
+                        mediaId = mediaItem?.mediaId.orEmpty(),
                         coverItemId = tag?.artworkItemId ?: mediaItem?.mediaId.orEmpty(),
                         coverTag = tag?.artworkTag,
                     )
@@ -91,6 +93,7 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                 shuffleEnabled = c.shuffleModeEnabled,
                 repeatMode = c.repeatMode,
                 hasQueue = c.mediaItemCount > 0,
+                mediaId = item?.mediaId.orEmpty(),
                 coverItemId = initTag?.artworkItemId ?: item?.mediaId.orEmpty(),
                 coverTag = initTag?.artworkTag,
             )

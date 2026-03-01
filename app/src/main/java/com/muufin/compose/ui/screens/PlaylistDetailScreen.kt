@@ -4,10 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -16,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
@@ -31,8 +36,8 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.request.ImageRequest
-import coil3.size.Size
+
+
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
@@ -42,11 +47,9 @@ import com.muufin.compose.model.durationLabel
 import com.muufin.compose.model.primaryImageTag
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.components.TrackRow
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import androidx.media3.session.MediaController
-import coil3.imageLoader
+
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.muufin.compose.ui.util.rememberMuufinHaptics
 
@@ -62,7 +65,6 @@ fun PlaylistDetailScreen(
 ) {
     val haptics = rememberMuufinHaptics()
     val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
 
     var playlist by remember { mutableStateOf<BaseItemDto?>(null) }
     var tracks by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
@@ -96,10 +98,24 @@ fun PlaylistDetailScreen(
         }
     }
 
+    val listState = rememberLazyListState()
     val indexById = remember(tracks) { tracks.withIndex().associate { (i, t) -> t.id to i } }
     val displayTracks = if (query.isBlank()) tracks else tracks.filter {
         it.name?.contains(query, ignoreCase = true) == true ||
             it.artists.any { a -> a.contains(query, ignoreCase = true) }
+    }
+
+    // Index of the playing track in displayTracks (+1 for header item)
+    val playingDisplayIndex = remember(displayTracks, playerUi.mediaId) {
+        displayTracks.indexOfFirst { it.id == playerUi.mediaId }.takeIf { it >= 0 }?.let { it + 1 }
+    }
+    val playingIndexState = rememberUpdatedState(playingDisplayIndex)
+    val showScrollToPlaying by remember {
+        derivedStateOf {
+            val idx = playingIndexState.value ?: return@derivedStateOf false
+            val visible = listState.layoutInfo.visibleItemsInfo
+            visible.none { it.index == idx }
+        }
     }
 
     LaunchedEffect(playlistId) {
@@ -109,30 +125,6 @@ fun PlaylistDetailScreen(
         val t = runCatching { repo.getPlaylistTracks(playlistId) }.getOrNull()
         playlist = p
         tracks = t.orEmpty()
-
-        // Pre-warm Coil memory cache for visible tracks (parallel decode)
-        val auth = AuthManager.state.value
-        if (auth.baseUrl.isNotBlank()) {
-            val loader = context.imageLoader
-            t?.take(15)?.map { item ->
-                async {
-                    val tag = item.primaryImageTag()
-                    val itemId = if (!tag.isNullOrBlank()) item.id else item.albumId ?: item.id
-                    val url = JellyfinUrls.itemImage(
-                        state = auth,
-                        itemId = itemId,
-                        tag = if (itemId == item.id) tag else null,
-                        maxWidth = 64,
-                    )
-                    runCatching {
-                        loader.execute(
-                            ImageRequest.Builder(context).data(url).size(128).build()
-                        )
-                    }
-                }
-            }?.awaitAll()
-        }
-
         isLoading = false
         if (p == null) error = "Failed to load playlist"
     }
@@ -201,45 +193,47 @@ fun PlaylistDetailScreen(
                 return@Box
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nestedScroll(pullToSearch),
-            ) {
-                Box(
-                    modifier = Modifier.animateContentSize(
-                        animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                    ),
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(pullToSearch),
                 ) {
-                    if (showSearch) {
-                        LaunchedEffect(searchKey) { focusRequester.requestFocus() }
-                        OutlinedTextField(
-                            value = query,
-                            onValueChange = { query = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .focusRequester(focusRequester),
-                            placeholder = { Text("Search tracks...") },
-                            shape = RoundedCornerShape(20.dp),
-                            leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                            trailingIcon = {
-                                IconButton(onClick = {
-                                    query = ""
-                                    showSearch = false
-                                    keyboardController?.hide()
-                                }) {
-                                    Icon(Icons.Rounded.Close, null)
-                                }
-                            },
-                            singleLine = true,
-                        )
+                    Box(
+                        modifier = Modifier.animateContentSize(
+                            animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
+                        ),
+                    ) {
+                        if (showSearch) {
+                            LaunchedEffect(searchKey) { focusRequester.requestFocus() }
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .focusRequester(focusRequester),
+                                placeholder = { Text("Search tracks...") },
+                                shape = RoundedCornerShape(20.dp),
+                                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        query = ""
+                                        showSearch = false
+                                        keyboardController?.hide()
+                                    }) {
+                                        Icon(Icons.Rounded.Close, null)
+                                    }
+                                },
+                                singleLine = true,
+                            )
+                        }
                     }
-                }
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 24.dp),
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 24.dp),
                 ) {
                     item {
                         PlaylistHeader(
@@ -248,6 +242,7 @@ fun PlaylistDetailScreen(
                             onPlay = {
                                 scope.launch {
                                     if (tracks.isNotEmpty()) {
+                                        PlayerManager.setQueueSource(playlistId)
                                         PlayerManager.playQueue(tracks)
                                         onOpenPlayer()
                                     }
@@ -256,6 +251,7 @@ fun PlaylistDetailScreen(
                             onShuffle = {
                                 scope.launch {
                                     if (tracks.isNotEmpty()) {
+                                        PlayerManager.setQueueSource(playlistId)
                                         PlayerManager.playQueue(tracks.shuffled())
                                         onOpenPlayer()
                                     }
@@ -286,14 +282,35 @@ fun PlaylistDetailScreen(
                             title = item.name,
                             subtitle = item.artists.joinToString().ifBlank { item.album.orEmpty() },
                             duration = item.durationLabel(),
+                            isPlaying = item.id == playerUi.mediaId,
                             leadingImageUrl = coverUrl,
                             onClick = {
                                 scope.launch {
+                                    PlayerManager.setQueueSource(playlistId)
                                     PlayerManager.playQueue(tracks, startIndex = originalIndex)
                                     onOpenPlayer()
                                 }
                             },
                         )
+                    }
+                }
+                }
+
+                AnimatedVisibility(
+                    visible = showScrollToPlaying,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut(),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 16.dp, bottom = 100.dp),
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = {
+                            val idx = playingDisplayIndex ?: return@SmallFloatingActionButton
+                            scope.launch { listState.animateScrollToItem(idx) }
+                        },
+                    ) {
+                        Icon(Icons.Rounded.MusicNote, contentDescription = "Scroll to playing track")
                     }
                 }
             }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ fun TrackRow(
     duration: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isPlaying: Boolean = false,
     leadingImageUrl: String? = null,
     leadingImageContentDescription: String? = null,
     leadingImageSize: Dp = 40.dp,
@@ -49,9 +51,14 @@ fun TrackRow(
         label = "trackRowScale",
     )
 
+    val shape = if (isPlaying) RoundedCornerShape(16.dp) else RoundedCornerShape(0.dp)
+
     Surface(
         tonalElevation = 0.dp,
-        modifier = modifier.fillMaxWidth(),
+        color = if (isPlaying) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.surface,
+        shape = shape,
+        modifier = modifier.fillMaxWidth().padding(horizontal = if (isPlaying) 8.dp else 0.dp),
         onClick = {
             haptics.tap()
             onClick()
@@ -100,7 +107,13 @@ fun TrackRow(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isPlaying) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                )
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,

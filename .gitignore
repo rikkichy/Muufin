@@ -30,3 +30,4 @@ proguard-project.txt
 *.tmp
 *.swp
 *.swo
+.*

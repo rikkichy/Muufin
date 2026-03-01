@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -34,6 +33,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -101,53 +101,43 @@ fun MuufinApp() {
                 contentWindowInsets = WindowInsets(0),
                 bottomBar = {
                     if (showBottomChrome) {
-                        Column {
-                            NowPlayingBar(
-                                controller = controller,
-                                state = playerUi,
-                                onOpenPlayer = { showPlayer = true },
+                        NavigationBar {
+                            NavigationBarItem(
+                                selected = currentRoute == Routes.HOME,
+                                onClick = {
+                                    haptics.tap()
+                                    if (currentRoute != Routes.HOME) {
+                                        nav.navigate(Routes.HOME) {
+                                            popUpTo(Routes.HOME) { inclusive = true }
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                },
+                                icon = { Icon(Icons.Rounded.MusicNote, contentDescription = null) },
+                                label = { Text("Library") },
                             )
-
-                            
-                            
-                            NavigationBar {
-                                NavigationBarItem(
-                                    selected = currentRoute == Routes.HOME,
-                                    onClick = {
-                                        haptics.tap()
-                                        if (currentRoute != Routes.HOME) {
-                                            nav.navigate(Routes.HOME) {
-                                                popUpTo(Routes.HOME) { inclusive = true }
-                                                launchSingleTop = true
-                                            }
+                            NavigationBarItem(
+                                selected = currentRoute == Routes.SETTINGS,
+                                onClick = {
+                                    haptics.tap()
+                                    if (currentRoute != Routes.SETTINGS) {
+                                        nav.navigate(Routes.SETTINGS) {
+                                            popUpTo(Routes.HOME)
+                                            launchSingleTop = true
                                         }
-                                    },
-                                    icon = { Icon(Icons.Rounded.MusicNote, contentDescription = null) },
-                                    label = { Text("Library") },
-                                )
-                                NavigationBarItem(
-                                    selected = currentRoute == Routes.SETTINGS,
-                                    onClick = {
-                                        haptics.tap()
-                                        if (currentRoute != Routes.SETTINGS) {
-                                            nav.navigate(Routes.SETTINGS) {
-                                                popUpTo(Routes.HOME)
-                                                launchSingleTop = true
-                                            }
-                                        }
-                                    },
-                                    icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
-                                    label = { Text("Settings") },
-                                )
-                            }
+                                    }
+                                },
+                                icon = { Icon(Icons.Rounded.Settings, contentDescription = null) },
+                                label = { Text("Settings") },
+                            )
                         }
                     }
                 },
             ) { padding ->
+                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                 NavHost(
                     navController = nav,
                     startDestination = if (auth.isSignedIn) Routes.HOME else Routes.LOGIN,
-                    modifier = Modifier.padding(padding),
                     enterTransition = { fadeIn(tween(210, delayMillis = 90)) },
                     exitTransition = { fadeOut(tween(90)) },
                     popEnterTransition = { fadeIn(tween(210, delayMillis = 90)) },
@@ -248,9 +238,19 @@ fun MuufinApp() {
                         )
                     }
                 }
+
+                if (showBottomChrome && currentRoute != Routes.SETTINGS) {
+                    NowPlayingBar(
+                        controller = controller,
+                        state = playerUi,
+                        onOpenPlayer = { showPlayer = true },
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                    )
+                }
+                }
             }
 
-            
+
             
             if (auth.isSignedIn && showPlayer) {
                 val density = LocalDensity.current

@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.muufin.compose.core.AuthManager
 import com.muufin.compose.core.JellyfinRepository
 import com.muufin.compose.core.JellyfinUrls
+import com.muufin.compose.core.PlayerManager
 import com.muufin.compose.core.SettingsManager
 import com.muufin.compose.model.dto.BaseItemDto
 import com.muufin.compose.model.primaryImageTag
@@ -104,8 +105,10 @@ fun LibraryScreen(
             }
         }
 
+        val activePlaylistId by PlayerManager.queueSourceId.collectAsState()
+
         when (tab) {
-            0 -> PlaylistsTab(repo = repo, onOpenPlaylist = onOpenPlaylist, layout = libraryLayout)
+            0 -> PlaylistsTab(repo = repo, onOpenPlaylist = onOpenPlaylist, layout = libraryLayout, activePlaylistId = activePlaylistId)
             1 -> AlbumsTab(repo = repo, onOpenAlbum = onOpenAlbum, layout = libraryLayout)
             2 -> ArtistsTab(repo = repo, onOpenArtist = onOpenArtist)
         }
@@ -450,6 +453,7 @@ private fun PlaylistsTab(
     repo: JellyfinRepository,
     onOpenPlaylist: (String) -> Unit,
     layout: Int,
+    activePlaylistId: String = "",
 ) {
     val scope = rememberCoroutineScope()
     val haptics = rememberMuufinHaptics()
@@ -549,6 +553,7 @@ private fun PlaylistsTab(
                                 subtitle = item.subtitle(),
                                 artwork = item.artworkModel(),
                                 onClick = { onOpenPlaylist(item.id) },
+                                isActive = item.id == activePlaylistId,
                             )
                         }
 
@@ -578,6 +583,7 @@ private fun PlaylistsTab(
                                 subtitle = item.subtitle(),
                                 artwork = item.artworkModel(maxWidth = 168),
                                 onClick = { onOpenPlaylist(item.id) },
+                                isActive = item.id == activePlaylistId,
                             )
                         }
 

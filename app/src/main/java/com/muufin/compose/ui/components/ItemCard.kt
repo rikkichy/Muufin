@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,7 @@ fun ItemCard(
     artwork: Any?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isActive: Boolean = false,
 ) {
     val haptics = rememberMuufinHaptics()
     val interactionSource = remember { MutableInteractionSource() }
@@ -65,6 +67,10 @@ fun ItemCard(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(20.dp))
+                .then(
+                    if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                    else Modifier
+                )
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
 
@@ -90,6 +96,7 @@ fun RowItem(
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    isActive: Boolean = false,
 ) {
     val haptics = rememberMuufinHaptics()
     val interactionSource = remember { MutableInteractionSource() }
@@ -108,6 +115,10 @@ fun RowItem(
         shape = RoundedCornerShape(18.dp),
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (isActive) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
+                else Modifier
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
