@@ -13,8 +13,8 @@ android {
         applicationId = "com.muufin.compose"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -83,7 +83,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
-    
+
     implementation("androidx.compose.material3:material3:1.5.0-alpha12")
     implementation("androidx.compose.material:material-icons-extended")
 
