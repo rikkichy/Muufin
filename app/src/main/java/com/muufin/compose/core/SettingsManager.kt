@@ -42,7 +42,7 @@ object SettingsManager {
     private val _defaultLibraryTab = MutableStateFlow(0)
     val defaultLibraryTab: StateFlow<Int> = _defaultLibraryTab.asStateFlow()
 
-    private val _libraryLayout = MutableStateFlow(0)
+    private val _libraryLayout = MutableStateFlow(1)
     val libraryLayout: StateFlow<Int> = _libraryLayout.asStateFlow()
 
     fun init(context: Context) {

@@ -20,9 +20,11 @@ import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.automirrored.rounded.ViewList
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Brush
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -77,7 +79,7 @@ fun SettingsScreen(
     val haptics = rememberMuufinHaptics()
 
     val preferLossless by SettingsManager.preferLosslessDirectPlay.collectAsState()
-    val playbackReporting by SettingsManager.enablePlaybackReporting.collectAsState()
+    val privateMode by SettingsManager.enablePlaybackReporting.collectAsState()
     val defaultTab by SettingsManager.defaultLibraryTab.collectAsState()
     val libraryLayout by SettingsManager.libraryLayout.collectAsState()
 
@@ -156,19 +158,19 @@ fun SettingsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Playback reporting")
+                                Text("Private mode")
                                 Text(
-                                    "Muufin will tell your Jellyfin instance what you're playing at the moment. Useful for such plugins as LastFM.",
+                                    "Hide what you're currently playing from your Jellyfin instance.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             Spacer(Modifier.size(12.dp))
                             Switch(
-                                checked = playbackReporting,
+                                checked = !privateMode,
                                 onCheckedChange = { enabled ->
                                     haptics.toggle()
-                                    scope.launch { SettingsManager.setEnablePlaybackReporting(enabled) }
+                                    scope.launch { SettingsManager.setEnablePlaybackReporting(!enabled) }
                                 }
                             )
                         }
@@ -201,7 +203,11 @@ fun SettingsScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Text("Interface", style = MaterialTheme.typography.titleMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Brush, contentDescription = null)
+                            Spacer(Modifier.size(8.dp))
+                            Text("Interface", style = MaterialTheme.typography.titleMedium)
+                        }
 
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -270,8 +276,8 @@ fun SettingsScreen(
 
                             val layouts = remember {
                                 listOf(
-                                    Triple("Grid", Icons.Rounded.GridView, 0),
                                     Triple("List", Icons.AutoMirrored.Rounded.ViewList, 1),
+                                    Triple("Grid", Icons.Rounded.GridView, 0),
                                 )
                             }
 
@@ -321,7 +327,7 @@ fun SettingsScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Tune, contentDescription = null)
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                             Spacer(Modifier.size(8.dp))
                             Text("Playback", style = MaterialTheme.typography.titleMedium)
                         }
@@ -414,13 +420,33 @@ fun SettingsScreen(
                         )
                     }
                     Spacer(Modifier.height(4.dp))
-                    Button(
-                        onClick = {
-                            haptics.tap()
-                            uriHandler.openUri("https://ko-fi.com/Rikkichy")
-                        },
+                    Text(
+                        text = "Made with \uD83E\uDD0D by Rii",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Support project on Ko-Fi")
+                        Button(
+                            onClick = {
+                                haptics.tap()
+                                uriHandler.openUri("https://ko-fi.com/Rikkichy")
+                            },
+                        ) {
+                            Text("Support project")
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                haptics.tap()
+                                uriHandler.openUri("https://github.com/rikkichy/Muufin")
+                            },
+                        ) {
+                            Text("GitHub")
+                        }
                     }
                 }
             }
