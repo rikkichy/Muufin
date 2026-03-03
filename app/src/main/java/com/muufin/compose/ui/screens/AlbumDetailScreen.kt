@@ -107,7 +107,7 @@ fun AlbumDetailScreen(
             val headerAlbum = album
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 24.dp),
+                contentPadding = PaddingValues(bottom = 100.dp),
             ) {
                 item {
                     AlbumHeader(

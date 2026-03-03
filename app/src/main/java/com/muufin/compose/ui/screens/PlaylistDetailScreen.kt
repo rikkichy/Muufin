@@ -233,7 +233,7 @@ fun PlaylistDetailScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(bottom = 24.dp),
+                        contentPadding = PaddingValues(bottom = 100.dp),
                 ) {
                     item {
                         PlaylistHeader(

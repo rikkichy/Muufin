@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -134,7 +135,7 @@ fun MuufinApp() {
                     }
                 },
             ) { padding ->
-                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                Box(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
                 NavHost(
                     navController = nav,
                     startDestination = if (auth.isSignedIn) Routes.HOME else Routes.LOGIN,
