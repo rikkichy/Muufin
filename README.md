@@ -10,13 +10,7 @@
 
 <h1 align="center">Muufin</h1>
 
-<p align="center">
-  Minimal Jellyfin music client for <strong>android</strong>, built with <strong>Material Expressive</strong>.
-</p>
-
-<p align="center">
-  Project is in <strong>Alpha</strong>, things will break and features may change.
-</p>
+<h3 align="center">A native Android music client for <a href="https://github.com/jellyfin/jellyfin">Jellyfin</a>.</h3>
 
 <p align="center">
 <img alt="GitHub Downloads (all assets, all releases)" src="https://img.shields.io/github/downloads/rikkichy/Muufin/total?style=for-the-badge&labelColor=2D3142&color=B0D7FF">
@@ -49,7 +43,14 @@
 
 ## Build
 
+> [!NOTE]
+> This part is intended for developers who want to build Muufin from source.
 ```bash
 git clone https://github.com/rikkichy/Muufin.git
 ```
-
+```bash
+cd Muufin
+```
+```bash
+./gradlew assembleDebug
+```
