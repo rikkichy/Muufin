@@ -1,5 +1,7 @@
 package com.muufin.compose.player
 
+import android.app.PendingIntent
+import android.content.Intent
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -116,6 +118,7 @@ class PlaybackService : MediaSessionService() {
             .setChannelId(NOTIFICATION_CHANNEL_ID)
             .setChannelName(R.string.notification_channel_playback_name)
             .build()
+        notificationProvider.setSmallIcon(R.drawable.ic_launcher_foreground)
         setMediaNotificationProvider(notificationProvider)
 
         
@@ -130,8 +133,18 @@ class PlaybackService : MediaSessionService() {
                 .build()
         )
 
+        val sessionActivity = PendingIntent.getActivity(
+            this,
+            0,
+            packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
         mediaSession = MediaSession.Builder(this, player)
             .setId("muufin_session")
+            .setSessionActivity(sessionActivity)
             .setBitmapLoader(bitmapLoader)
             .build()
     }
