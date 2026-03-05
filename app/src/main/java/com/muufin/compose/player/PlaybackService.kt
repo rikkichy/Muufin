@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
+import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.muufin.compose.core.PlaybackUris
@@ -42,6 +43,37 @@ class PlaybackService : MediaSessionService() {
     private lateinit var playbackReporter: PlaybackReporter
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    private val turnShuffleOnButton by lazy {
+        CommandButton.Builder(CommandButton.ICON_SHUFFLE_OFF)
+            .setDisplayName("Shuffle")
+            .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE, true)
+            .build()
+    }
+    private val turnShuffleOffButton by lazy {
+        CommandButton.Builder(CommandButton.ICON_SHUFFLE_ON)
+            .setDisplayName("Shuffle")
+            .setPlayerCommand(Player.COMMAND_SET_SHUFFLE_MODE, false)
+            .build()
+    }
+    private val repeatOffButton by lazy {
+        CommandButton.Builder(CommandButton.ICON_REPEAT_OFF)
+            .setDisplayName("Repeat")
+            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, Player.REPEAT_MODE_ALL)
+            .build()
+    }
+    private val repeatAllButton by lazy {
+        CommandButton.Builder(CommandButton.ICON_REPEAT_ALL)
+            .setDisplayName("Repeat")
+            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, Player.REPEAT_MODE_ONE)
+            .build()
+    }
+    private val repeatOneButton by lazy {
+        CommandButton.Builder(CommandButton.ICON_REPEAT_ONE)
+            .setDisplayName("Repeat")
+            .setPlayerCommand(Player.COMMAND_SET_REPEAT_MODE, Player.REPEAT_MODE_OFF)
+            .build()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -147,6 +179,31 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(sessionActivity)
             .setBitmapLoader(bitmapLoader)
             .build()
+
+        player.addListener(object : Player.Listener {
+            override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                updateMediaButtonPreferences()
+            }
+            override fun onRepeatModeChanged(repeatMode: Int) {
+                updateMediaButtonPreferences()
+            }
+        })
+        updateMediaButtonPreferences()
+    }
+
+    private fun updateMediaButtonPreferences() {
+        val player = mediaSession.player
+        mediaSession.setMediaButtonPreferences(
+            listOf(
+                if (player.shuffleModeEnabled) turnShuffleOffButton else turnShuffleOnButton,
+                when (player.repeatMode) {
+                    Player.REPEAT_MODE_OFF -> repeatOffButton
+                    Player.REPEAT_MODE_ALL -> repeatAllButton
+                    Player.REPEAT_MODE_ONE -> repeatOneButton
+                    else -> repeatOffButton
+                },
+            )
+        )
     }
 
     private fun fallbackCurrentItemToHls(player: ExoPlayer, reason: String) {
