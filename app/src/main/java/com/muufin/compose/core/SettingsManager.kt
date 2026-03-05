@@ -16,7 +16,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 
@@ -54,27 +53,12 @@ object SettingsManager {
         )
 
         scope.launch {
-            store.data
-                .map { it[KEY_PREFER_LOSSLESS_DIRECT] ?: false }
-                .collect { _preferLosslessDirectPlay.value = it }
-        }
-
-        scope.launch {
-            store.data
-                .map { it[KEY_ENABLE_PLAYBACK_REPORTING] ?: true }
-                .collect { _enablePlaybackReporting.value = it }
-        }
-
-        scope.launch {
-            store.data
-                .map { it[KEY_DEFAULT_LIBRARY_TAB] ?: 0 }
-                .collect { _defaultLibraryTab.value = it.coerceIn(0, 2) }
-        }
-
-        scope.launch {
-            store.data
-                .map { it[KEY_LIBRARY_LAYOUT] ?: 0 }
-                .collect { _libraryLayout.value = it.coerceIn(0, 1) }
+            store.data.collect { prefs ->
+                _preferLosslessDirectPlay.value = prefs[KEY_PREFER_LOSSLESS_DIRECT] ?: false
+                _enablePlaybackReporting.value = prefs[KEY_ENABLE_PLAYBACK_REPORTING] ?: true
+                _defaultLibraryTab.value = (prefs[KEY_DEFAULT_LIBRARY_TAB] ?: 0).coerceIn(0, 2)
+                _libraryLayout.value = (prefs[KEY_LIBRARY_LAYOUT] ?: 0).coerceIn(0, 1)
+            }
         }
     }
 

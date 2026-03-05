@@ -1,11 +1,7 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.Muufin" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/white</item>
+        <item name="windowSplashScreenBackground">#1C1B1F</item>
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
         <item name="postSplashScreenTheme">@style/Theme.Muufin.Main</item>
-    </style>
-
-    <style name="Theme.Muufin.Main" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 </resources>

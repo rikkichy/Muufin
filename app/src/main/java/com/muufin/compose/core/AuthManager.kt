@@ -6,7 +6,9 @@ import androidx.security.crypto.MasterKey
 import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.AuthState
 import com.muufin.compose.model.dto.AuthByNameRequest
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,41 +29,45 @@ object AuthManager {
     private val _state = MutableStateFlow(AuthState())
     val state: StateFlow<AuthState> = _state.asStateFlow()
 
+    private val _ready = CompletableDeferred<Unit>()
+    val ready: Deferred<Unit> get() = _ready
+
     fun init(context: Context) {
         appContext = context.applicationContext
 
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
+        scope.launch {
+            val masterKey = MasterKey.Builder(appContext)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
 
-        prefs = EncryptedSharedPreferences.create(
-            appContext,
-            PREFS_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+            prefs = EncryptedSharedPreferences.create(
+                appContext,
+                PREFS_NAME,
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
 
-        val deviceId = prefs.getString("deviceId", null) ?: UUID.randomUUID().toString().also {
-            prefs.edit().putString("deviceId", it).apply()
+            val deviceId = prefs.getString("deviceId", null) ?: UUID.randomUUID().toString().also {
+                prefs.edit().putString("deviceId", it).apply()
+            }
+
+            val loaded = AuthState(
+                baseUrl = prefs.getString("baseUrl", "") ?: "",
+                userId = prefs.getString("userId", "") ?: "",
+                accessToken = prefs.getString("accessToken", "") ?: "",
+                deviceId = deviceId,
+                clientName = "Muufin",
+                deviceName = android.os.Build.MODEL ?: "Android",
+                appVersion = BuildInfo.appVersion(appContext),
+                disableTls = prefs.getBoolean("disableTls", false),
+                customCaBase64 = prefs.getString("customCaBase64", "") ?: "",
+            )
+
+            _state.value = loaded
+            HttpClients.rebuild()
+            _ready.complete(Unit)
         }
-
-        val loaded = AuthState(
-            baseUrl = prefs.getString("baseUrl", "") ?: "",
-            userId = prefs.getString("userId", "") ?: "",
-            accessToken = prefs.getString("accessToken", "") ?: "",
-            deviceId = deviceId,
-            clientName = "Muufin",
-            deviceName = android.os.Build.MODEL ?: "Android",
-            appVersion = BuildInfo.appVersion(context),
-            disableTls = prefs.getBoolean("disableTls", false),
-            customCaBase64 = prefs.getString("customCaBase64", "") ?: "",
-        )
-
-        _state.value = loaded
-
-        
-        HttpClients.rebuild()
     }
 
     fun updateDisableTls(disableTls: Boolean) {

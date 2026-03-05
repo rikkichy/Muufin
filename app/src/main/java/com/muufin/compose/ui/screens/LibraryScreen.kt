@@ -239,7 +239,7 @@ private fun AlbumsTab(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(displayAlbums, key = { it.id }) { item ->
+                        items(displayAlbums, key = { it.id }, contentType = { "album_card" }) { item ->
                             ItemCard(
                                 title = item.name,
                                 subtitle = item.subtitle(),
@@ -249,7 +249,7 @@ private fun AlbumsTab(
                         }
 
                         if (isLoading && albums.isNotEmpty()) {
-                            item {
+                            item(contentType = "loading") {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -268,7 +268,7 @@ private fun AlbumsTab(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(displayAlbums, key = { it.id }) { item ->
+                        items(displayAlbums, key = { it.id }, contentType = { "album_row" }) { item ->
                             RowItem(
                                 title = item.name,
                                 subtitle = item.subtitle(),
@@ -278,7 +278,7 @@ private fun AlbumsTab(
                         }
 
                         if (isLoading && albums.isNotEmpty()) {
-                            item {
+                            item(contentType = "loading") {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -403,7 +403,7 @@ private fun ArtistsTab(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(displayArtists, key = { it.id }) { item ->
+                    items(displayArtists, key = { it.id }, contentType = { "artist_row" }) { item ->
                         RowItem(
                             title = item.name,
                             subtitle = item.subtitle(),
@@ -413,7 +413,7 @@ private fun ArtistsTab(
                     }
 
                     if (isLoading && artists.isNotEmpty()) {
-                        item {
+                        item(contentType = "loading") {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -547,7 +547,7 @@ private fun PlaylistsTab(
                         horizontalArrangement = Arrangement.spacedBy(14.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(displayPlaylists, key = { it.id }) { item ->
+                        items(displayPlaylists, key = { it.id }, contentType = { "playlist_card" }) { item ->
                             ItemCard(
                                 title = item.name,
                                 subtitle = item.subtitle(),
@@ -558,7 +558,7 @@ private fun PlaylistsTab(
                         }
 
                         if (isLoading && playlists.isNotEmpty()) {
-                            item {
+                            item(contentType = "loading") {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -577,7 +577,7 @@ private fun PlaylistsTab(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(displayPlaylists, key = { it.id }) { item ->
+                        items(displayPlaylists, key = { it.id }, contentType = { "playlist_row" }) { item ->
                             RowItem(
                                 title = item.name,
                                 subtitle = item.subtitle(),
@@ -588,7 +588,7 @@ private fun PlaylistsTab(
                         }
 
                         if (isLoading && playlists.isNotEmpty()) {
-                            item {
+                            item(contentType = "loading") {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()

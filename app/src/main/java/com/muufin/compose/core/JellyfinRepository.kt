@@ -8,6 +8,14 @@ import com.muufin.compose.model.dto.UserDto
 import retrofit2.HttpException
 
 class JellyfinRepository {
+    private val itemCache = mutableMapOf<String, BaseItemDto>()
+    private val playlistTracksCache = mutableMapOf<String, List<BaseItemDto>>()
+    private val albumTracksCache = mutableMapOf<String, List<BaseItemDto>>()
+
+    fun getCachedItem(id: String): BaseItemDto? = itemCache[id]
+    fun getCachedPlaylistTracks(id: String): List<BaseItemDto>? = playlistTracksCache[id]
+    fun getCachedAlbumTracks(id: String): List<BaseItemDto>? = albumTracksCache[id]
+
     private fun api(): JellyfinApi {
         val state = AuthManager.state.value
         return JellyfinApi.create(state)
@@ -67,7 +75,7 @@ class JellyfinRepository {
             put("sortOrder", "Ascending")
             put("enableImages", "true")
         }
-        return api().getItems(qp).items
+        return api().getItems(qp).items.also { albumTracksCache[albumId] = it }
     }
 
     suspend fun getArtistAlbums(artistId: String): List<BaseItemDto> {
@@ -94,12 +102,12 @@ class JellyfinRepository {
             put("enableImageTypes", "Primary")
             put("imageTypeLimit", "1")
         }
-        return api().getPlaylistItems(playlistId, qp).items
+        return api().getPlaylistItems(playlistId, qp).items.also { playlistTracksCache[playlistId] = it }
     }
 
     suspend fun getItem(itemId: String): BaseItemDto {
         val s = AuthManager.state.value
-        return api().getItem(itemId = itemId, userId = s.userId)
+        return api().getItem(itemId = itemId, userId = s.userId).also { itemCache[itemId] = it }
     }
 
     suspend fun search(term: String): List<BaseItemDto> {

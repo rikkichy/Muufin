@@ -35,7 +35,9 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
+import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 
 
 import com.muufin.compose.core.AuthManager
@@ -47,6 +49,9 @@ import com.muufin.compose.model.durationLabel
 import com.muufin.compose.model.primaryImageTag
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.components.TrackRow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import androidx.media3.session.MediaController
 
@@ -66,9 +71,11 @@ fun PlaylistDetailScreen(
     val haptics = rememberMuufinHaptics()
     val scope = rememberCoroutineScope()
 
-    var playlist by remember { mutableStateOf<BaseItemDto?>(null) }
-    var tracks by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    val cachedPlaylist = remember { repo.getCachedItem(playlistId) }
+    val cachedTracks = remember { repo.getCachedPlaylistTracks(playlistId) }
+    var playlist by remember { mutableStateOf(cachedPlaylist) }
+    var tracks by remember { mutableStateOf(cachedTracks ?: emptyList()) }
+    var isLoading by remember { mutableStateOf(cachedTracks == null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     var query by remember { mutableStateOf("") }
@@ -77,6 +84,7 @@ fun PlaylistDetailScreen(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     val showSearchState = rememberUpdatedState(showSearch)
     val triggerSearch = rememberUpdatedState {
         haptics.tap()
@@ -100,14 +108,21 @@ fun PlaylistDetailScreen(
 
     val listState = rememberLazyListState()
     val indexById = remember(tracks) { tracks.withIndex().associate { (i, t) -> t.id to i } }
-    val displayTracks = if (query.isBlank()) tracks else tracks.filter {
-        it.name?.contains(query, ignoreCase = true) == true ||
-            it.artists.any { a -> a.contains(query, ignoreCase = true) }
+    val displayTracks by remember {
+        derivedStateOf {
+            if (query.isBlank()) tracks else tracks.filter {
+                it.name?.contains(query, ignoreCase = true) == true ||
+                    it.artists.any { a -> a.contains(query, ignoreCase = true) }
+            }
+        }
     }
 
     // Index of the playing track in displayTracks (+1 for header item)
-    val playingDisplayIndex = remember(displayTracks, playerUi.mediaId) {
-        displayTracks.indexOfFirst { it.id == playerUi.mediaId }.takeIf { it >= 0 }?.let { it + 1 }
+    val mediaId = playerUi.mediaId
+    val playingDisplayIndex by remember {
+        derivedStateOf {
+            displayTracks.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 }?.let { it + 1 }
+        }
     }
     val playingIndexState = rememberUpdatedState(playingDisplayIndex)
     val showScrollToPlaying by remember {
@@ -119,14 +134,43 @@ fun PlaylistDetailScreen(
     }
 
     LaunchedEffect(playlistId) {
-        isLoading = true
+        val hasCached = cachedTracks != null
+        if (!hasCached) isLoading = true
         error = null
-        val p = runCatching { repo.getItem(playlistId) }.getOrNull()
-        val t = runCatching { repo.getPlaylistTracks(playlistId) }.getOrNull()
-        playlist = p
-        tracks = t.orEmpty()
-        isLoading = false
-        if (p == null) error = "Failed to load playlist"
+        coroutineScope {
+            val pDeferred = async { runCatching { repo.getItem(playlistId) }.getOrNull() }
+            val tDeferred = async { runCatching { repo.getPlaylistTracks(playlistId) }.getOrNull() }
+            val p = pDeferred.await()
+            val t = tDeferred.await()
+            if (p != null) playlist = p
+            if (!t.isNullOrEmpty()) {
+                tracks = t
+                // Prefetch first visible track images into memory cache BEFORE showing UI
+                val loader = SingletonImageLoader.get(appContext)
+                val s = AuthManager.state.value
+                if (s.baseUrl.isNotBlank()) {
+                    t.take(15).map { item ->
+                        val primaryTag = item.primaryImageTag()
+                        val coverItemId = if (!primaryTag.isNullOrBlank()) item.id else item.albumId ?: item.id
+                        val url = JellyfinUrls.itemImage(
+                            state = s,
+                            itemId = coverItemId,
+                            tag = if (coverItemId == item.id) primaryTag else null,
+                            maxWidth = 64,
+                        )
+                        async {
+                            runCatching {
+                                loader.execute(
+                                    ImageRequest.Builder(appContext).data(url).size(128).build()
+                                )
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+            isLoading = false
+            if (p == null && !hasCached) error = "Failed to load playlist"
+        }
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -230,12 +274,13 @@ fun PlaylistDetailScreen(
                         }
                     }
 
+                    val authState = AuthManager.state.value
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentPadding = PaddingValues(bottom = 100.dp),
                 ) {
-                    item {
+                    item(contentType = "playlist_header") {
                         PlaylistHeader(
                             playlist = playlist,
                             trackCount = tracks.size,
@@ -260,18 +305,17 @@ fun PlaylistDetailScreen(
                         )
                     }
 
-                    val s = AuthManager.state.value
-                    itemsIndexed(displayTracks, key = { _, it -> it.id }) { _, item ->
+                    itemsIndexed(displayTracks, key = { _, it -> it.id }, contentType = { _, _ -> "track_row" }) { _, item ->
                         val originalIndex = indexById[item.id] ?: 0
                         val primaryTag = item.primaryImageTag()
                         val coverItemId = remember(item.id, item.albumId, primaryTag) {
                             if (!primaryTag.isNullOrBlank()) item.id else item.albumId ?: item.id
                         }
 
-                        val coverUrl = remember(coverItemId, primaryTag, s.baseUrl) {
-                            if (s.baseUrl.isBlank()) null
+                        val coverUrl = remember(coverItemId, primaryTag, authState.baseUrl) {
+                            if (authState.baseUrl.isBlank()) null
                             else JellyfinUrls.itemImage(
-                                state = s,
+                                state = authState,
                                 itemId = coverItemId,
                                 tag = if (coverItemId == item.id) primaryTag else null,
                                 maxWidth = 64,
@@ -282,7 +326,7 @@ fun PlaylistDetailScreen(
                             title = item.name,
                             subtitle = item.artists.joinToString().ifBlank { item.album.orEmpty() },
                             duration = item.durationLabel(),
-                            isPlaying = item.id == playerUi.mediaId,
+                            isPlaying = item.id == mediaId,
                             leadingImageUrl = coverUrl,
                             onClick = {
                                 scope.launch {

@@ -12,6 +12,7 @@ import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
+import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.util.DebugLogger
 import com.muufin.compose.core.AuthManager
@@ -19,6 +20,9 @@ import com.muufin.compose.core.HttpClients
 import com.muufin.compose.core.PlayerManager
 import com.muufin.compose.core.SettingsManager
 import com.muufin.compose.player.PlaybackService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MuufinApplication : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
@@ -28,6 +32,24 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
         SettingsManager.init(this)
         PlayerManager.init(this)
         createPlaybackNotificationChannel()
+        cleanupLegacyCaches()
+        warmupImageCache()
+    }
+
+    private fun warmupImageCache() {
+        CoroutineScope(Dispatchers.IO).launch {
+            // Pre-build the image OkHttpClient (SSL context, interceptors, connection pool)
+            HttpClients.imageOkHttp()
+            // Full Coil pipeline warmup: journal read → fetcher → decoder → BitmapFactory → memory cache
+            val loader = SingletonImageLoader.get(this@MuufinApplication)
+            loader.diskCache?.size
+            loader.execute(
+                ImageRequest.Builder(this@MuufinApplication)
+                    .data(R.mipmap.ic_launcher)
+                    .size(1)
+                    .build()
+            )
+        }
     }
 
     private fun createPlaybackNotificationChannel() {
@@ -43,6 +65,11 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
         mgr.createNotificationChannel(channel)
     }
 
+    private fun cleanupLegacyCaches() {
+        filesDir.resolve("coil_cache").takeIf { it.exists() }?.deleteRecursively()
+        filesDir.resolve("http_cache").takeIf { it.exists() }?.deleteRecursively()
+    }
+
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(context)
             .components {
@@ -50,7 +77,7 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(context.filesDir.resolve("coil_cache"))
+                    .directory(context.cacheDir.resolve("coil_cache"))
                     .maxSizeBytes(50L * 1024 * 1024) // 50 MB
                     .build()
             }

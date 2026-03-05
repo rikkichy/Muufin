@@ -24,6 +24,8 @@ import com.muufin.compose.model.durationLabel
 import com.muufin.compose.model.primaryImageTag
 import com.muufin.compose.ui.components.PlayerUiState
 import com.muufin.compose.ui.components.TrackRow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import androidx.media3.session.MediaController
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -42,20 +44,27 @@ fun AlbumDetailScreen(
     val haptics = rememberMuufinHaptics()
     val scope = rememberCoroutineScope()
 
-    var album by remember { mutableStateOf<BaseItemDto?>(null) }
-    var tracks by remember { mutableStateOf<List<BaseItemDto>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    val cachedAlbum = remember { repo.getCachedItem(albumId) }
+    val cachedTracks = remember { repo.getCachedAlbumTracks(albumId) }
+    var album by remember { mutableStateOf(cachedAlbum) }
+    var tracks by remember { mutableStateOf(cachedTracks ?: emptyList()) }
+    var isLoading by remember { mutableStateOf(cachedTracks == null) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(albumId) {
-        isLoading = true
+        val hasCached = cachedTracks != null
+        if (!hasCached) isLoading = true
         error = null
-        val a = runCatching { repo.getItem(albumId) }.getOrNull()
-        val t = runCatching { repo.getAlbumTracks(albumId) }.getOrNull()
-        album = a
-        tracks = t.orEmpty()
-        isLoading = false
-        if (a == null) error = "Failed to load album"
+        coroutineScope {
+            val aDeferred = async { runCatching { repo.getItem(albumId) }.getOrNull() }
+            val tDeferred = async { runCatching { repo.getAlbumTracks(albumId) }.getOrNull() }
+            val a = aDeferred.await()
+            val t = tDeferred.await()
+            if (a != null) album = a
+            if (!t.isNullOrEmpty()) tracks = t
+            isLoading = false
+            if (a == null && !hasCached) error = "Failed to load album"
+        }
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -109,7 +118,7 @@ fun AlbumDetailScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp),
             ) {
-                item {
+                item(contentType = "album_header") {
                     AlbumHeader(
                         album = headerAlbum,
                         trackCount = tracks.size,
@@ -132,7 +141,7 @@ fun AlbumDetailScreen(
                     )
                 }
 
-                itemsIndexed(tracks, key = { _, it -> it.id }) { index, item ->
+                itemsIndexed(tracks, key = { _, it -> it.id }, contentType = { _, _ -> "track_row" }) { index, item ->
                     TrackRow(
                         index = index,
                         title = item.name,

@@ -5,9 +5,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.muufin.compose.core.AuthManager
 import com.muufin.compose.ui.MuufinApp
 
 class MainActivity : ComponentActivity() {
@@ -15,9 +18,12 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {  }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { !AuthManager.ready.isCompleted }
+
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        
         if (Build.VERSION.SDK_INT >= 33) {
             val granted = ContextCompat.checkSelfPermission(
                 this,

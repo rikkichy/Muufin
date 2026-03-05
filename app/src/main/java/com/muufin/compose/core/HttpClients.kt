@@ -4,9 +4,9 @@ import android.content.Context
 import com.muufin.compose.BuildConfig
 import com.muufin.compose.data.JellyfinApi
 import com.muufin.compose.model.AuthState
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import okhttp3.Cache
+import okhttp3.CacheControl
+import okhttp3.ConnectionPool
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -30,15 +30,16 @@ object HttpClients {
     private val playerRef = AtomicReference<OkHttpClient?>()
     private val imageRef = AtomicReference<OkHttpClient?>()
     private var httpCache: Cache? = null
+    private val sharedPool = ConnectionPool(5, 5, TimeUnit.MINUTES)
 
     fun init(context: Context) {
-        val cacheDir = File(context.filesDir, "http_cache")
+        val cacheDir = File(context.cacheDir, "http_cache")
         httpCache = Cache(cacheDir, 25L * 1024 * 1024) // 25 MB
     }
 
     fun rebuild() {
-        apiRef.set(buildApiClient())
-        playerRef.set(buildPlayerClient())
+        apiRef.set(null)
+        playerRef.set(null)
         imageRef.set(null)
         JellyfinApi.invalidate()
     }
@@ -108,14 +109,18 @@ object HttpClients {
         useCache: Boolean = true,
         forceCacheSeconds: Int = 0,
     ): OkHttpClient {
-        val state: AuthState = runBlocking { AuthManager.state.first() }
+        val state: AuthState = AuthManager.state.value
 
         val builder = OkHttpClient.Builder()
+            .connectionPool(sharedPool)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(AuthHeaderInterceptor(acceptHeader = acceptHeader, forPlayback = forPlayback))
-        if (useCache) httpCache?.let { builder.cache(it) }
+        if (useCache) {
+            httpCache?.let { builder.cache(it) }
+            builder.addInterceptor(StaleCacheInterceptor)
+        }
         if (forceCacheSeconds > 0) {
             builder.addNetworkInterceptor { chain ->
                 val response = chain.proceed(chain.request())
@@ -152,6 +157,24 @@ object HttpClients {
         }
 
         return builder.build()
+    }
+
+    private object StaleCacheInterceptor : Interceptor {
+        private val staleControl = CacheControl.Builder()
+            .maxStale(1, TimeUnit.HOURS)
+            .build()
+
+        override fun intercept(chain: Interceptor.Chain): okhttp3.Response {
+            val request = chain.request()
+            if (request.method == "GET") {
+                return chain.proceed(
+                    request.newBuilder()
+                        .cacheControl(staleControl)
+                        .build()
+                )
+            }
+            return chain.proceed(request)
+        }
     }
 
     private class AuthHeaderInterceptor(
