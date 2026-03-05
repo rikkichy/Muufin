@@ -87,7 +87,7 @@ fun TrackRow(
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
                             .data(leadingImageUrl)
-                            .size(128)
+                            .size(Size(128, 128))
                             .build(),
                         contentDescription = leadingImageContentDescription,
                         modifier = Modifier.fillMaxSize(),

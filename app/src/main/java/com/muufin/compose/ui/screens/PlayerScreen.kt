@@ -144,7 +144,14 @@ fun PlayerScreen(
 
     val artworkForUi = hiResArtworkUri ?: ui.artworkUri
 
-    
+    val blurArtworkUri = remember(auth.baseUrl, coverItemId, coverTag) {
+        if (auth.baseUrl.isBlank() || coverItemId.isNullOrBlank()) null
+        else android.net.Uri.parse(
+            JellyfinUrls.itemImage(state = auth, itemId = coverItemId, tag = coverTag, maxWidth = 64, quality = 40)
+        )
+    }
+
+
     val artTransitionSpec = spring<Float>(
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessLow,
@@ -206,14 +213,6 @@ fun PlayerScreen(
         }
     }
 
-    
-    LaunchedEffect(position, duration) {
-        if (sliderPos == null && duration > 0) {
-            sliderPos = position.toFloat()
-            sliderPos = null
-        }
-    }
-
     val qualityText = audioMediaStream?.codec?.uppercase()
 
     
@@ -227,7 +226,7 @@ fun PlayerScreen(
         
         AsyncImage(
             model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                .data(artworkForUi)
+                .data(blurArtworkUri ?: artworkForUi)
                 .crossfade(true)
                 .build(),
             contentDescription = null,

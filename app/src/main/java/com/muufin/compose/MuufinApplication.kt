@@ -4,12 +4,12 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.os.Build
 import androidx.core.content.getSystemService
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
+import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
@@ -53,7 +53,6 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
     }
 
     private fun createPlaybackNotificationChannel() {
-        if (Build.VERSION.SDK_INT < 26) return
         val mgr = getSystemService<NotificationManager>() ?: return
         val channel = NotificationChannel(
             PlaybackService.NOTIFICATION_CHANNEL_ID,
@@ -74,6 +73,12 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
         return ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { HttpClients.imageOkHttp() }))
+            }
+            .memoryCache {
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.20) // 20% of available memory
+                    .strongReferencesEnabled(true)
+                    .build()
             }
             .diskCache {
                 DiskCache.Builder()

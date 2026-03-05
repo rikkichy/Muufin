@@ -2,8 +2,11 @@ package com.muufin.compose.player
 
 import android.util.Log
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultDataSource
@@ -47,8 +50,27 @@ class PlaybackService : MediaSessionService() {
         val dataSourceFactory = DefaultDataSource.Factory(this, okHttpFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
 
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs */ 30_000,
+                /* maxBufferMs */ 120_000,
+                /* bufferForPlaybackMs */ 500,
+                /* bufferForPlaybackAfterRebufferMs */ 1_000,
+            )
+            .build()
+
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
+
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setAudioOffloadPreferences(
+                TrackSelectionParameters.AudioOffloadPreferences.Builder()
+                    .setAudioOffloadMode(TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
+                    .build()
+            )
             .build()
 
         
@@ -82,8 +104,8 @@ class PlaybackService : MediaSessionService() {
 
         player.setAudioAttributes(
             AudioAttributes.Builder()
-                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .build(),
             true
         )
