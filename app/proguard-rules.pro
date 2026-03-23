@@ -10,11 +10,11 @@
 
 # ── kotlinx-serialization ─────────────────────────────────
 -keepattributes *Annotation*, InnerClasses
--keep,includedescriptorclasses class com.muufin.compose.model.dto.**$$serializer { *; }
--keepclassmembers class com.muufin.compose.model.dto.** {
+-keep,includedescriptorclasses class cat.ri.muufin.model.dto.**$$serializer { *; }
+-keepclassmembers class cat.ri.muufin.model.dto.** {
     *** Companion;
 }
--keepclasseswithmembers class com.muufin.compose.model.dto.** {
+-keepclasseswithmembers class cat.ri.muufin.model.dto.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

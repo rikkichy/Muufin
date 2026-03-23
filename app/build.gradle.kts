@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.muufin.compose"
+    namespace = "cat.ri.muufin"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.muufin.compose"
+        applicationId = "cat.ri.muufin"
         minSdk = 26
         targetSdk = 35
         versionCode = 6
