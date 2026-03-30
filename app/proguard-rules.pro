@@ -2,21 +2,26 @@
 
 # ── Retrofit ──────────────────────────────────────────────
 -keepattributes Signature
--keepclassmembers,allowshrinking,allowobfuscation interface * {
+-keepclassmembers interface * {
     @retrofit2.http.* <methods>;
 }
+-keep,allowobfuscation interface cat.ri.muufin.data.JellyfinApi { *; }
 -dontwarn retrofit2.**
 -dontwarn okhttp3.internal.platform.**
 
 # ── kotlinx-serialization ─────────────────────────────────
 -keepattributes *Annotation*, InnerClasses
--keep,includedescriptorclasses class cat.ri.muufin.model.dto.**$$serializer { *; }
+-keep class cat.ri.muufin.model.dto.** { *; }
+-keep class cat.ri.muufin.model.dto.**$$serializer { *; }
 -keepclassmembers class cat.ri.muufin.model.dto.** {
     *** Companion;
 }
 -keepclasseswithmembers class cat.ri.muufin.model.dto.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# ── JakeWharton converter ────────────────────────────────
+-keep class com.jakewharton.retrofit2.converter.kotlinx.serialization.** { *; }
 
 # ── OkHttp ────────────────────────────────────────────────
 -dontwarn org.conscrypt.**
