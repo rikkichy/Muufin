@@ -1,6 +1,6 @@
 package cat.ri.muufin.data
 
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
+import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import cat.ri.muufin.core.HttpClients
 import cat.ri.muufin.core.JellyfinAuthorization
 import cat.ri.muufin.model.AuthState
