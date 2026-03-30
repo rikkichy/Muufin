@@ -12,8 +12,8 @@ android {
         applicationId = "cat.ri.muufin"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.6"
+        versionCode = 14
+        versionName = "1.0.7"
 
         vectorDrawables {
             useSupportLibrary = true
