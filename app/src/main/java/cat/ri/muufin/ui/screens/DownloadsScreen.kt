@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Downloading
@@ -13,16 +14,19 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import cat.ri.muufin.core.AuthManager
 import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinUrls
 import cat.ri.muufin.core.PlayerManager
+import cat.ri.muufin.model.dto.DownloadTask
 import cat.ri.muufin.model.dto.DownloadTaskStatus
 import cat.ri.muufin.model.dto.DownloadedTrack
 import cat.ri.muufin.ui.util.rememberMuufinHaptics
@@ -44,7 +48,6 @@ fun DownloadsScreen(
 
     var showClearDialog by remember { mutableStateOf(false) }
 
-    // Group downloaded tracks by album
     val albumGroups = remember(catalog) {
         catalog.tracks
             .groupBy { it.albumId ?: "unknown" }
@@ -52,8 +55,13 @@ fun DownloadsScreen(
             .sortedByDescending { (_, tracks) -> tracks.maxOf { it.downloadedAtEpochMs } }
     }
 
-    val pendingCount = queue.count { it.status == DownloadTaskStatus.PENDING }
-    val failedTasks = remember(queue) { queue.filter { it.status == DownloadTaskStatus.FAILED } }
+    val activeTasks = remember(queue) {
+        queue.filter { it.status == DownloadTaskStatus.PENDING || it.status == DownloadTaskStatus.DOWNLOADING }
+    }
+    val failedTasks = remember(queue) {
+        queue.filter { it.status == DownloadTaskStatus.FAILED }
+    }
+    val hasQueue = activeTasks.isNotEmpty() || failedTasks.isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -82,7 +90,7 @@ fun DownloadsScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (catalog.tracks.isEmpty() && queue.isEmpty() && failedTasks.isEmpty()) {
+            if (catalog.tracks.isEmpty() && !hasQueue) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.Center,
@@ -103,81 +111,85 @@ fun DownloadsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp),
             ) {
-                // Active downloads banner
-                if (activeDownload != null || pendingCount > 0) {
-                    item(contentType = "active_banner") {
-                        Card(
+                // --- Active queue section ---
+                if (activeTasks.isNotEmpty()) {
+                    item(key = "queue_header", contentType = "section_header") {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 Icon(
                                     if (isPaused) Icons.Rounded.Pause else Icons.Rounded.Downloading,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp),
                                 )
-                                Column(modifier = Modifier.weight(1f)) {
-                                    val active = activeDownload
-                                    if (isPaused) {
-                                        Text(
-                                            "Paused" + if (active != null) " — ${active.name}" else "",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                    } else if (active != null) {
-                                        Text(
-                                            "${active.name} — ${active.progressPercent}%",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        )
-                                    }
-                                    if (pendingCount > 0) {
-                                        Text(
-                                            "$pendingCount more in queue",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                                        )
-                                    }
-                                }
-                                IconButton(onClick = {
-                                    haptics.tap()
-                                    if (isPaused) DownloadManager.resumeDownloads()
-                                    else DownloadManager.pauseDownloads()
-                                }) {
+                                Text(
+                                    if (isPaused) "Paused · ${activeTasks.size} tracks"
+                                    else "Downloading · ${activeTasks.size} tracks",
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        haptics.tap()
+                                        if (isPaused) DownloadManager.resumeDownloads()
+                                        else DownloadManager.pauseDownloads()
+                                    },
+                                    modifier = Modifier.size(36.dp),
+                                ) {
                                     Icon(
                                         if (isPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
                                         contentDescription = if (isPaused) "Resume" else "Pause",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(20.dp),
                                     )
                                 }
-                                TextButton(onClick = {
-                                    haptics.tap()
-                                    DownloadManager.cancelAll()
-                                }) {
-                                    Text("Cancel")
+                                IconButton(
+                                    onClick = {
+                                        haptics.tap()
+                                        DownloadManager.cancelAll()
+                                    },
+                                    modifier = Modifier.size(36.dp),
+                                ) {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = "Cancel all",
+                                        modifier = Modifier.size(20.dp),
+                                    )
                                 }
                             }
                         }
                     }
+
+                    items(
+                        items = activeTasks,
+                        key = { "q_${it.trackId}" },
+                        contentType = { "queue_track" },
+                    ) { task ->
+                        QueueTrackRow(
+                            task = task,
+                            activeDownload = activeDownload,
+                            isPaused = isPaused,
+                            onCancel = { DownloadManager.cancelDownload(task.trackId) },
+                        )
+                    }
                 }
 
-                // Failed downloads
+                // --- Failed section ---
                 if (failedTasks.isNotEmpty()) {
-                    item(contentType = "failed_header") {
+                    item(key = "failed_header", contentType = "section_header") {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
@@ -197,7 +209,7 @@ fun DownloadsScreen(
                                     color = MaterialTheme.colorScheme.error,
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 TextButton(onClick = {
                                     haptics.tap()
                                     DownloadManager.retryAllFailed()
@@ -236,11 +248,7 @@ fun DownloadsScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        task.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        maxLines = 1,
-                                    )
+                                    Text(task.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                                     Text(
                                         task.errorMessage ?: "Download failed",
                                         style = MaterialTheme.typography.bodySmall,
@@ -259,7 +267,37 @@ fun DownloadsScreen(
                     }
                 }
 
-                // Downloaded tracks grouped by album
+                // --- Divider between queue and completed ---
+                if (hasQueue && albumGroups.isNotEmpty()) {
+                    item(key = "divider", contentType = "divider") {
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                    }
+                }
+
+                // --- Completed downloads grouped by album ---
+                if (albumGroups.isNotEmpty()) {
+                    item(key = "completed_header", contentType = "section_header") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                Icons.Rounded.DownloadDone,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                "${catalog.tracks.size} tracks downloaded",
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                        }
+                    }
+                }
+
                 albumGroups.forEach { (albumId, tracks) ->
                     val albumName = tracks.firstOrNull()?.album ?: "Unknown Album"
                     val artistName = tracks.firstOrNull()?.artists?.joinToString().orEmpty()
@@ -282,11 +320,10 @@ fun DownloadsScreen(
                             track = track,
                             onPlay = {
                                 scope.launch {
-                                    // Build simple BaseItemDto for playback from downloaded tracks
                                     val albumTracks = tracks.map { it.toBaseItemDto() }
                                     val startIndex = albumTracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
-                                    PlayerManager.playQueue(albumTracks, startIndex = startIndex)
-                                    onOpenPlayer()
+                                    if (PlayerManager.playQueue(albumTracks, startIndex = startIndex))
+                                        onOpenPlayer()
                                 }
                             },
                             onRemove = { DownloadManager.removeDownload(track.id) },
@@ -320,6 +357,80 @@ fun DownloadsScreen(
 }
 
 @Composable
+private fun QueueTrackRow(
+    task: DownloadTask,
+    activeDownload: DownloadTask?,
+    isPaused: Boolean,
+    onCancel: () -> Unit,
+) {
+    val haptics = rememberMuufinHaptics()
+    val isActive = activeDownload?.trackId == task.trackId
+    val progress = if (isActive) activeDownload?.progressPercent ?: 0 else 0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Status icon
+        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            if (isActive && !isPaused) {
+                CircularProgressIndicator(
+                    progress = { progress / 100f },
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else if (isPaused && isActive) {
+                Icon(
+                    Icons.Rounded.Pause,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.Schedule,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(task.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+            Text(
+                when {
+                    isActive && isPaused -> "Paused"
+                    isActive -> "$progress%"
+                    else -> task.artists.joinToString().ifBlank { task.album.orEmpty() }
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+
+        IconButton(
+            onClick = {
+                haptics.tap()
+                onCancel()
+            },
+            modifier = Modifier.size(32.dp),
+        ) {
+            Icon(
+                Icons.Rounded.Close,
+                contentDescription = "Cancel",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AlbumGroupHeader(
     albumName: String,
     artistName: String,
@@ -335,7 +446,7 @@ private fun AlbumGroupHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -343,24 +454,18 @@ private fun AlbumGroupHeader(
             model = artworkUrl,
             contentDescription = null,
             modifier = Modifier
-                .size(48.dp)
-                .clip(MaterialTheme.shapes.medium)
+                .size(40.dp)
+                .clip(MaterialTheme.shapes.small)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(albumName, style = MaterialTheme.typography.titleSmall)
+            Text(albumName, style = MaterialTheme.typography.labelLarge)
             Text(
                 "$artistName · $trackCount tracks",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Icon(
-            Icons.Rounded.DownloadDone,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
     }
 }
 
@@ -395,11 +500,7 @@ private fun DownloadedTrackRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    track.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                )
+                Text(track.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
                 Text(
                     track.artists.joinToString(),
                     style = MaterialTheme.typography.bodySmall,

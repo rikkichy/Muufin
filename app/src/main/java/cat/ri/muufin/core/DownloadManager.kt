@@ -58,6 +58,9 @@ object DownloadManager {
     private val _paused = MutableStateFlow(false)
     val paused: StateFlow<Boolean> = _paused.asStateFlow()
 
+    private val _cancelled = MutableStateFlow(false)
+    val cancelled: StateFlow<Boolean> = _cancelled.asStateFlow()
+
     fun init(context: Context) {
         appContext = context.applicationContext
         metadataDir = File(appContext.filesDir, "downloads").also { it.mkdirs() }
@@ -171,11 +174,16 @@ object DownloadManager {
     }
 
     fun cancelAll() {
+        _cancelled.value = true
         scope.launch {
             mutex.withLock {
                 _queue.value = emptyList()
                 _activeDownload.value = null
                 persistQueueSync()
+            }
+            // Stop the service
+            runCatching {
+                appContext.stopService(Intent(appContext, DownloadService::class.java))
             }
         }
     }
@@ -402,6 +410,7 @@ object DownloadManager {
     }
 
     private fun startService() {
+        _cancelled.value = false
         runCatching {
             val intent = Intent(appContext, DownloadService::class.java)
             appContext.startForegroundService(intent)

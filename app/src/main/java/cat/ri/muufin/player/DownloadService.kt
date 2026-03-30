@@ -189,6 +189,12 @@ class DownloadService : Service() {
                     var lastPercent = -1
 
                     while (serviceScope.isActive) {
+                        // Check cancel — abort immediately
+                        if (DownloadManager.cancelled.value) {
+                            tmpFile.delete()
+                            return
+                        }
+
                         // Check pause — close connection and abort; will be retried
                         if (DownloadManager.paused.value) {
                             output.flush()
