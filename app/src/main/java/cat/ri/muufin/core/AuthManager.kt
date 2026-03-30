@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package cat.ri.muufin.core
 
 import android.content.Context

@@ -644,7 +644,7 @@ private fun QuickConnectDialog(
                 }.getOrNull()
 
                 if (auth != null && !auth.accessToken.isNullOrBlank() && !auth.user?.id.isNullOrBlank()) {
-                    onAuthenticated(base, auth.user!!.id!!, auth.accessToken!!)
+                    onAuthenticated(base, auth.user.id, auth.accessToken)
                 } else {
                     error = "Approved but authentication failed."
                 }

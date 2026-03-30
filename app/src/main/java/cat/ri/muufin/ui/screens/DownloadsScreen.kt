@@ -387,7 +387,7 @@ private fun QueueTrackRow(
 ) {
     val haptics = rememberMuufinHaptics()
     val isActive = activeDownload?.trackId == task.trackId
-    val progress = if (isActive) activeDownload?.progressPercent ?: 0 else 0
+    val progress = if (isActive) activeDownload.progressPercent else 0
 
     Row(
         modifier = Modifier

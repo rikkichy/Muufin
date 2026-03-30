@@ -200,7 +200,7 @@ private fun AlbumsTab(
     val displayAlbums by remember {
         derivedStateOf {
             if (query.isBlank()) albums.toList() else albums.filter {
-                it.name?.contains(query, ignoreCase = true) == true
+                it.name.contains(query, ignoreCase = true)
             }
         }
     }
@@ -383,7 +383,7 @@ private fun ArtistsTab(
     val displayArtists by remember {
         derivedStateOf {
             if (query.isBlank()) artists.toList() else artists.filter {
-                it.name?.contains(query, ignoreCase = true) == true
+                it.name.contains(query, ignoreCase = true)
             }
         }
     }
@@ -540,7 +540,7 @@ private fun PlaylistsTab(
     val displayPlaylists by remember {
         derivedStateOf {
             if (query.isBlank()) playlists.toList() else playlists.filter {
-                it.name?.contains(query, ignoreCase = true) == true
+                it.name.contains(query, ignoreCase = true)
             }
         }
     }

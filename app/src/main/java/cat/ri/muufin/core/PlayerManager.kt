@@ -33,17 +33,18 @@ object PlayerManager {
     private val _queueSourceId = MutableStateFlow("")
     val queueSourceId: StateFlow<String> = _queueSourceId
 
-    private val executor = Executors.newSingleThreadExecutor()
+    @Volatile private var executor = Executors.newSingleThreadExecutor()
 
     @Volatile private var controllerFuture: ListenableFuture<MediaController>? = null
 
-    
+
     fun releaseController() {
         controllerFuture?.let {
             runCatching { MediaController.releaseFuture(it) }
         }
         controllerFuture = null
         executor.shutdown()
+        executor = Executors.newSingleThreadExecutor()
     }
 
     fun init(context: Context) {

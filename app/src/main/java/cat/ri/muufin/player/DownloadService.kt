@@ -176,10 +176,7 @@ class DownloadService : Service() {
         codec: String?,
         bitRate: Int?,
     ) {
-        val body = response.body ?: run {
-            DownloadManager.onDownloadFailed(task.trackId, "Empty response body")
-            return
-        }
+        val body = response.body
 
         val ext = container
             ?: contentTypeToExtension(response.header("Content-Type"))
@@ -297,7 +294,7 @@ class DownloadService : Service() {
             client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                 if (response.isSuccessful) {
                     val artworkFile = File(DownloadManager.getArtworkDir(), "${task.trackId}.jpg")
-                    response.body?.byteStream()?.use { input ->
+                    response.body.byteStream().use { input ->
                         artworkFile.outputStream().use { output -> input.copyTo(output) }
                     }
                 }

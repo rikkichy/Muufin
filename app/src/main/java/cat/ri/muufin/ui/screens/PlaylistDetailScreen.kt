@@ -118,7 +118,7 @@ fun PlaylistDetailScreen(
     val displayTracks by remember {
         derivedStateOf {
             if (query.isBlank()) tracks else tracks.filter {
-                it.name?.contains(query, ignoreCase = true) == true ||
+                it.name.contains(query, ignoreCase = true) ||
                     it.artists.any { a -> a.contains(query, ignoreCase = true) }
             }
         }
@@ -433,7 +433,7 @@ private fun PlaylistHeader(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (!playlist?.name.isNullOrBlank()) {
                         Text(
-                            text = playlist?.name.orEmpty(),
+                            text = playlist.name,
                             style = MaterialTheme.typography.headlineSmall,
                             maxLines = 2,
                         )
