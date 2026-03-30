@@ -68,6 +68,12 @@ class DownloadService : Service() {
             val task = DownloadManager.takeNextPending() ?: break
             downloadTrackWithRetry(task)
         }
+        // Final check — a download may have been enqueued while we were finishing the last one
+        val late = DownloadManager.takeNextPending()
+        if (late != null) {
+            downloadTrackWithRetry(late)
+            return processQueue()
+        }
         stopSelf()
     }
 
@@ -131,18 +137,22 @@ class DownloadService : Service() {
             // Try dedicated download endpoint first, fall back to stream on 403
             val response = run {
                 val downloadUrl = JellyfinUrls.itemDownload(auth, task.trackId)
-                val resp = client.newCall(Request.Builder().url(downloadUrl).build()).execute()
+                val reqBuilder = Request.Builder().url(downloadUrl)
+                if (task.bytesDownloaded > 0) reqBuilder.header("Range", "bytes=${task.bytesDownloaded}-")
+                val resp = client.newCall(reqBuilder.build()).execute()
                 if (resp.code == 403) {
                     resp.close()
                     val fallbackUrl = JellyfinUrls.audioStreamStatic(auth, task.trackId)
-                    client.newCall(Request.Builder().url(fallbackUrl).build()).execute()
+                    val fallbackBuilder = Request.Builder().url(fallbackUrl)
+                    if (task.bytesDownloaded > 0) fallbackBuilder.header("Range", "bytes=${task.bytesDownloaded}-")
+                    client.newCall(fallbackBuilder.build()).execute()
                 } else {
                     resp
                 }
             }
 
             response.use { resp ->
-                if (!resp.isSuccessful) {
+                if (!resp.isSuccessful && resp.code != 206) {
                     DownloadManager.onDownloadFailed(task.trackId, "HTTP ${resp.code}")
                     return
                 }
@@ -175,7 +185,15 @@ class DownloadService : Service() {
             ?: contentTypeToExtension(response.header("Content-Type"))
             ?: "mp3"
 
-        val totalBytes = body.contentLength().takeIf { it > 0 } ?: expectedSize ?: -1L
+        // Detect whether server honored Range request (206 = partial content)
+        val resumed = task.bytesDownloaded > 0 && response.code == 206
+        val contentLen = body.contentLength().takeIf { it > 0 }
+        val totalBytes = if (resumed) {
+            contentLen?.let { it + task.bytesDownloaded } ?: expectedSize ?: -1L
+        } else {
+            contentLen ?: expectedSize ?: -1L
+        }
+
         val fileName = "${task.trackId}.$ext"
         val downloadsDir = DownloadManager.getDownloadsDir()
         val tmpFile = File(downloadsDir, "$fileName.tmp")
@@ -183,9 +201,9 @@ class DownloadService : Service() {
 
         try {
             body.byteStream().use { input ->
-                tmpFile.outputStream().use { output ->
+                java.io.FileOutputStream(tmpFile, resumed).use { output ->
                     val buffer = ByteArray(8192)
-                    var bytesRead: Long = 0
+                    var bytesRead: Long = if (resumed) task.bytesDownloaded else 0
                     var lastPercent = -1
 
                     while (serviceScope.isActive) {
@@ -226,11 +244,11 @@ class DownloadService : Service() {
                 }
             }
 
-            // Verify file integrity (allow 50% tolerance for transcoded streams)
+            // Verify file integrity (allow 10% tolerance for transcoded streams)
             val actualSize = tmpFile.length()
             if (totalBytes > 0 && actualSize > 0) {
                 val ratio = actualSize.toDouble() / totalBytes
-                if (ratio < 0.5 || ratio > 1.5) {
+                if (ratio < 0.9 || ratio > 1.1) {
                     tmpFile.delete()
                     DownloadManager.onDownloadFailed(task.trackId, "Size mismatch: expected $totalBytes, got $actualSize")
                     return

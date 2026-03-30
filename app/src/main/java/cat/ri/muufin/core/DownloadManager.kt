@@ -71,6 +71,7 @@ object DownloadManager {
         artworkDir = File(downloadsDir, "artwork").also { it.mkdirs() }
 
         scope.launch {
+            AuthManager.ready.await()
             mutex.withLock {
                 val cat = loadCatalog()
                 _catalog.value = cat
@@ -352,7 +353,10 @@ object DownloadManager {
         scope.launch {
             mutex.withLock {
                 _queue.value = _queue.value.map {
-                    if (it.trackId == trackId) it.copy(status = DownloadTaskStatus.PENDING) else it
+                    if (it.trackId == trackId) it.copy(
+                        status = DownloadTaskStatus.PENDING,
+                        bytesDownloaded = bytesRead,
+                    ) else it
                 }
                 _activeDownload.value = null
                 persistQueueSync()

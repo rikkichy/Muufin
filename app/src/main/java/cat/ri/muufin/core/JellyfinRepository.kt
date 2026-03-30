@@ -130,15 +130,25 @@ class JellyfinRepository {
 
     suspend fun getPlaylistTracks(playlistId: String): List<BaseItemDto> {
         val s = AuthManager.state.value
-        val qp = buildMap {
-            put("userId", s.userId)
-            put("startIndex", "0")
-            put("limit", "1000")
-            put("enableImages", "true")
-            put("enableImageTypes", "Primary")
-            put("imageTypeLimit", "1")
-        }
-        return api().getPlaylistItems(playlistId, qp).items.also { playlistTracksCache[playlistId] = CacheEntry(it) }
+        val allItems = mutableListOf<BaseItemDto>()
+        val pageSize = 500
+        var startIndex = 0
+
+        do {
+            val qp = buildMap {
+                put("userId", s.userId)
+                put("startIndex", startIndex.toString())
+                put("limit", pageSize.toString())
+                put("enableImages", "true")
+                put("enableImageTypes", "Primary")
+                put("imageTypeLimit", "1")
+            }
+            val page = api().getPlaylistItems(playlistId, qp)
+            allItems.addAll(page.items)
+            startIndex += page.items.size
+        } while (page.items.size >= pageSize)
+
+        return allItems.also { playlistTracksCache[playlistId] = CacheEntry(it) }
     }
 
     suspend fun getItem(itemId: String): BaseItemDto? {

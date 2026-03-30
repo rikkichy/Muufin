@@ -49,6 +49,7 @@ data class DownloadTask(
     val fileSizeBytes: Long? = null,
     val status: DownloadTaskStatus = DownloadTaskStatus.PENDING,
     val progressPercent: Int = 0,
+    val bytesDownloaded: Long = 0,
     val errorMessage: String? = null,
     val serverBaseUrl: String,
     val enqueuedAtEpochMs: Long,

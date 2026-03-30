@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 
 object SyncManager {
@@ -38,6 +39,7 @@ object SyncManager {
     fun init(context: Context) {
         metadataDir = java.io.File(context.applicationContext.filesDir, "downloads").also { it.mkdirs() }
         scope.launch {
+            AuthManager.ready.await()
             _syncState.value = loadSyncState()
         }
     }
@@ -63,11 +65,12 @@ object SyncManager {
         _syncState.value = _syncState.value.copy(syncInProgress = true)
 
         try {
-            rateLimiter.acquire()
+            AuthManager.ready.await()
+            withTimeout(30_000L) { rateLimiter.acquire() }
             val albumCount = repo.getAlbumCount()
-            rateLimiter.acquire()
+            withTimeout(30_000L) { rateLimiter.acquire() }
             val playlistCount = repo.getPlaylistCount()
-            rateLimiter.acquire()
+            withTimeout(30_000L) { rateLimiter.acquire() }
             val artistCount = repo.getArtistCount()
 
             val prev = loadSyncCounts()
@@ -95,13 +98,14 @@ object SyncManager {
     }
 
     suspend fun validateDownloads() {
+        AuthManager.ready.await()
         val downloadedIds = DownloadManager.getAllDownloadedTrackIds()
         if (downloadedIds.isEmpty()) return
 
         val removedIds = mutableSetOf<String>()
 
         downloadedIds.chunked(50).forEach { batch ->
-            rateLimiter.acquire()
+            withTimeout(30_000L) { rateLimiter.acquire() }
             try {
                 val s = AuthManager.state.value
                 val qp = buildMap {

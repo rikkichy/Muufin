@@ -30,7 +30,8 @@ object HttpClients {
     private val playerRef = AtomicReference<OkHttpClient?>()
     private val imageRef = AtomicReference<OkHttpClient?>()
     private var httpCache: Cache? = null
-    private val sharedPool = ConnectionPool(5, 5, TimeUnit.MINUTES)
+    private val apiPool = ConnectionPool(5, 5, TimeUnit.MINUTES)
+    private val mediaPool = ConnectionPool(5, 5, TimeUnit.MINUTES)
 
     fun init(context: Context) {
         val cacheDir = File(context.cacheDir, "http_cache")
@@ -44,7 +45,8 @@ object HttpClients {
                 client.connectionPool.evictAll()
             }
         }
-        sharedPool.evictAll()
+        apiPool.evictAll()
+        mediaPool.evictAll()
         JellyfinApi.invalidate()
     }
 
@@ -61,6 +63,7 @@ object HttpClients {
             acceptHeader = "image/*",
             forPlayback = false,
             forceCacheSeconds = 604_800, // 7 days — URL tag param handles invalidation
+            pool = mediaPool,
         ).also { imageRef.set(it) }
     }
 
@@ -94,15 +97,16 @@ object HttpClients {
             acceptHeader = "application/json",
             forPlayback = false,
             forceCacheSeconds = 300, // 5 min — covers force-close/reopen
+            pool = apiPool,
         )
     }
 
     private fun buildPlayerClient(): OkHttpClient {
-        
         return buildClient(
             acceptHeader = "*/*",
             forPlayback = true,
             readTimeoutSeconds = 0,
+            pool = mediaPool,
         )
     }
 
@@ -112,11 +116,12 @@ object HttpClients {
         readTimeoutSeconds: Long = 30,
         useCache: Boolean = true,
         forceCacheSeconds: Int = 0,
+        pool: ConnectionPool = apiPool,
     ): OkHttpClient {
         val state: AuthState = AuthManager.state.value
 
         val builder = OkHttpClient.Builder()
-            .connectionPool(sharedPool)
+            .connectionPool(pool)
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(readTimeoutSeconds, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
