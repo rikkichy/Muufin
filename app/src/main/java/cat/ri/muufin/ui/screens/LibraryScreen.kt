@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import android.util.Log
 import cat.ri.muufin.core.AuthManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.core.JellyfinUrls
@@ -500,7 +501,10 @@ private fun PlaylistsTab(
     suspend fun loadMore() {
         if (isLoading || endReached) return
         isLoading = true
-        val next = runCatching { repo.getPlaylists(startIndex = playlists.size, limit = 40) }.getOrNull().orEmpty()
+        val result = runCatching { repo.getPlaylists(startIndex = playlists.size, limit = 40) }
+        result.exceptionOrNull()?.let { Log.e("PlaylistsTab", "loadMore failed", it) }
+        val next = result.getOrNull().orEmpty()
+        Log.d("PlaylistsTab", "loadMore: got ${next.size} items, exception=${result.exceptionOrNull()}")
         if (next.isEmpty()) endReached = true else playlists.addAll(next)
         isLoading = false
     }
@@ -514,6 +518,7 @@ private fun PlaylistsTab(
     }
 
     LaunchedEffect(Unit) {
+        Log.d("PlaylistsTab", "LaunchedEffect fired, playlists.isEmpty=${playlists.isEmpty()}")
         if (playlists.isEmpty()) loadMore()
     }
 
