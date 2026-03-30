@@ -118,28 +118,26 @@ interface JellyfinApi {
             explicitNulls = false
         }
 
-        @Volatile private var cachedBaseUrl: String? = null
-        @Volatile private var cachedApi: JellyfinApi? = null
+        @Volatile private var cached: Pair<String, JellyfinApi>? = null
 
         fun create(state: AuthState): JellyfinApi {
             val baseUrl = state.baseUrl.trim().removeSuffix("/") + "/"
-            cachedApi?.let { if (cachedBaseUrl == baseUrl) return it }
-
-            val retrofit = Retrofit.Builder()
-                .baseUrl(baseUrl)
-                .client(HttpClients.apiOkHttp())
-                .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-                .build()
-
-            val api = retrofit.create(JellyfinApi::class.java)
-            cachedBaseUrl = baseUrl
-            cachedApi = api
-            return api
+            cached?.let { (url, api) -> if (url == baseUrl) return api }
+            synchronized(this) {
+                cached?.let { (url, api) -> if (url == baseUrl) return api }
+                val retrofit = Retrofit.Builder()
+                    .baseUrl(baseUrl)
+                    .client(HttpClients.apiOkHttp())
+                    .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+                    .build()
+                val api = retrofit.create(JellyfinApi::class.java)
+                cached = baseUrl to api
+                return api
+            }
         }
 
         fun invalidate() {
-            cachedApi = null
-            cachedBaseUrl = null
+            cached = null
         }
     }
 }

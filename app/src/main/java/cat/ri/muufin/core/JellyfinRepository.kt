@@ -6,6 +6,7 @@ import cat.ri.muufin.model.dto.BaseItemDto
 import cat.ri.muufin.model.dto.MediaStreamDto
 import cat.ri.muufin.model.dto.UserDto
 import retrofit2.HttpException
+import java.util.concurrent.ConcurrentHashMap
 
 class JellyfinRepository {
 
@@ -20,9 +21,9 @@ class JellyfinRepository {
         private const val CACHE_TTL_MS = 5L * 60 * 1000 // 5 minutes
     }
 
-    private val itemCache = mutableMapOf<String, CacheEntry<BaseItemDto>>()
-    private val playlistTracksCache = mutableMapOf<String, CacheEntry<List<BaseItemDto>>>()
-    private val albumTracksCache = mutableMapOf<String, CacheEntry<List<BaseItemDto>>>()
+    private val itemCache = ConcurrentHashMap<String, CacheEntry<BaseItemDto>>()
+    private val playlistTracksCache = ConcurrentHashMap<String, CacheEntry<List<BaseItemDto>>>()
+    private val albumTracksCache = ConcurrentHashMap<String, CacheEntry<List<BaseItemDto>>>()
 
     fun getCachedItem(id: String): BaseItemDto? {
         val entry = itemCache[id] ?: return null

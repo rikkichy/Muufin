@@ -335,9 +335,9 @@ object DownloadManager {
             serverBaseUrl = task.serverBaseUrl,
         )
 
-        index[track.id] = track
         scope.launch {
             mutex.withLock {
+                index[track.id] = track
                 _catalog.value = _catalog.value.copy(tracks = _catalog.value.tracks + track)
                 _downloadedIds.value = index.keys.toSet()
                 _queue.value = _queue.value.filter { it.trackId != task.trackId }
@@ -403,8 +403,8 @@ object DownloadManager {
             val tmp = File(metadataDir, "$CATALOG_FILE.tmp")
             tmp.writeText(json.encodeToString(DownloadCatalog.serializer(), _catalog.value))
             if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true)
                 tmp.delete()
-                Log.e(TAG, "Failed to rename catalog tmp file")
             }
         }.onFailure { Log.e(TAG, "Failed to persist catalog", it) }
     }
@@ -427,8 +427,8 @@ object DownloadManager {
             val serializer = kotlinx.serialization.builtins.ListSerializer(DownloadTask.serializer())
             tmp.writeText(json.encodeToString(serializer, _queue.value))
             if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true)
                 tmp.delete()
-                Log.e(TAG, "Failed to rename queue tmp file")
             }
         }.onFailure { Log.e(TAG, "Failed to persist queue", it) }
     }

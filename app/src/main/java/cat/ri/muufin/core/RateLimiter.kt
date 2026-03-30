@@ -12,26 +12,19 @@ class RateLimiter(
     private val mutex = Mutex()
 
     suspend fun acquire() {
-        mutex.withLock {
-            val now = System.currentTimeMillis()
-            // Prune expired timestamps
-            while (timestamps.isNotEmpty() && timestamps.first() + windowMs <= now) {
-                timestamps.removeFirst()
-            }
-            if (timestamps.size >= maxRequests) {
-                val waitMs = (timestamps.first() + windowMs) - now
-                if (waitMs > 0) {
-                    mutex.unlock()
-                    delay(waitMs)
-                    mutex.lock()
-                    // Re-prune after waiting
-                    val newNow = System.currentTimeMillis()
-                    while (timestamps.isNotEmpty() && timestamps.first() + windowMs <= newNow) {
-                        timestamps.removeFirst()
-                    }
+        while (true) {
+            val waitMs = mutex.withLock {
+                val now = System.currentTimeMillis()
+                while (timestamps.isNotEmpty() && timestamps.first() + windowMs <= now) {
+                    timestamps.removeFirst()
                 }
+                if (timestamps.size < maxRequests) {
+                    timestamps.addLast(now)
+                    return
+                }
+                (timestamps.first() + windowMs) - now
             }
-            timestamps.addLast(System.currentTimeMillis())
+            if (waitMs > 0) delay(waitMs)
         }
     }
 }

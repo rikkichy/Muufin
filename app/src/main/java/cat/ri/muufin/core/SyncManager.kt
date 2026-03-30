@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.serialization.json.Json
 
 object SyncManager {
@@ -31,6 +32,7 @@ object SyncManager {
     private val _syncState = MutableStateFlow(SyncState())
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
+    private val syncMutex = Mutex()
     private var periodicJob: Job? = null
 
     fun init(context: Context) {
@@ -57,7 +59,7 @@ object SyncManager {
     }
 
     suspend fun syncLibrary() {
-        if (_syncState.value.syncInProgress) return
+        if (!syncMutex.tryLock()) return
         _syncState.value = _syncState.value.copy(syncInProgress = true)
 
         try {
@@ -85,8 +87,10 @@ object SyncManager {
             )
             saveSyncState(_syncState.value)
         } catch (e: Exception) {
-            _syncState.value = _syncState.value.copy(syncInProgress = false)
             Log.w(TAG, "Library sync failed", e)
+        } finally {
+            _syncState.value = _syncState.value.copy(syncInProgress = false)
+            syncMutex.unlock()
         }
     }
 
@@ -145,7 +149,10 @@ object SyncManager {
             val file = java.io.File(metadataDir, SYNC_STATE_FILE)
             val tmp = java.io.File(metadataDir, "$SYNC_STATE_FILE.tmp")
             tmp.writeText(json.encodeToString(SyncState.serializer(), state))
-            tmp.renameTo(file)
+            if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true)
+                tmp.delete()
+            }
         }.onFailure { Log.e(TAG, "Failed to save sync state", it) }
     }
 
@@ -165,7 +172,10 @@ object SyncManager {
             val file = java.io.File(metadataDir, SYNC_COUNTS_FILE)
             val tmp = java.io.File(metadataDir, "$SYNC_COUNTS_FILE.tmp")
             tmp.writeText(json.encodeToString(SyncCounts.serializer(), counts))
-            tmp.renameTo(file)
+            if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true)
+                tmp.delete()
+            }
         }.onFailure { Log.e(TAG, "Failed to save sync counts", it) }
     }
 }
