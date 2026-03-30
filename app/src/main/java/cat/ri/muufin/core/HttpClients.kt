@@ -39,12 +39,9 @@ object HttpClients {
     }
 
     fun rebuild() {
-        listOf(apiRef, playerRef, imageRef).forEach { ref ->
-            ref.getAndSet(null)?.let { client ->
-                client.dispatcher.executorService.shutdown()
-                client.connectionPool.evictAll()
-            }
-        }
+        apiRef.set(null)
+        playerRef.set(null)
+        imageRef.set(null)
         apiPool.evictAll()
         mediaPool.evictAll()
         JellyfinApi.invalidate()
