@@ -58,6 +58,15 @@ fun DownloadsScreen(
     val activeTasks = remember(queue) {
         queue.filter { it.status == DownloadTaskStatus.PENDING || it.status == DownloadTaskStatus.DOWNLOADING }
     }
+    // Group queued tracks by album, preserving queue order (first track in each group determines group order)
+    val queueGroups = remember(activeTasks) {
+        val groups = linkedMapOf<String, MutableList<DownloadTask>>()
+        activeTasks.forEach { task ->
+            val key = task.album ?: task.albumId ?: "Other"
+            groups.getOrPut(key) { mutableListOf() }.add(task)
+        }
+        groups.toList()
+    }
     val failedTasks = remember(queue) {
         queue.filter { it.status == DownloadTaskStatus.FAILED }
     }
@@ -169,17 +178,30 @@ fun DownloadsScreen(
                         }
                     }
 
-                    items(
-                        items = activeTasks,
-                        key = { "q_${it.trackId}" },
-                        contentType = { "queue_track" },
-                    ) { task ->
-                        QueueTrackRow(
-                            task = task,
-                            activeDownload = activeDownload,
-                            isPaused = isPaused,
-                            onCancel = { DownloadManager.cancelDownload(task.trackId) },
-                        )
+                    queueGroups.forEach { (albumName, tasks) ->
+                        val completedInGroup = tasks.count {
+                            DownloadManager.isDownloaded(it.trackId)
+                        }
+                        item(key = "qg_$albumName", contentType = "queue_group_header") {
+                            Text(
+                                "$albumName",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(
+                            items = tasks,
+                            key = { "q_${it.trackId}" },
+                            contentType = { "queue_track" },
+                        ) { task ->
+                            QueueTrackRow(
+                                task = task,
+                                activeDownload = activeDownload,
+                                isPaused = isPaused,
+                                onCancel = { DownloadManager.cancelDownload(task.trackId) },
+                            )
+                        }
                     }
                 }
 
