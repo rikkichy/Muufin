@@ -252,6 +252,30 @@ object DownloadManager {
         }
     }
 
+    fun removeDownloadsBySync(trackIds: Set<String>) {
+        scope.launch {
+            mutex.withLock {
+                var changed = false
+                trackIds.forEach { trackId ->
+                    val track = index.remove(trackId) ?: return@forEach
+                    val file = File(downloadsDir, track.fileName)
+                    if (file.exists()) file.delete()
+                    File(artworkDir, "$trackId.jpg").delete()
+                    changed = true
+                }
+                if (changed) {
+                    _catalog.value = _catalog.value.copy(
+                        tracks = _catalog.value.tracks.filter { it.id !in trackIds }
+                    )
+                    _downloadedIds.value = index.keys.toSet()
+                    persistCatalogSync()
+                }
+            }
+        }
+    }
+
+    fun getAllDownloadedTrackIds(): Set<String> = index.keys.toSet()
+
     // --- Lookups ---
 
     fun isDownloaded(trackId: String): Boolean = index.containsKey(trackId)

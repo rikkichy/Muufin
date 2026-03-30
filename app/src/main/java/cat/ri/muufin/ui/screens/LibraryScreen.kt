@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -152,6 +153,7 @@ private fun AlbumsTab(
     val albums = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
@@ -159,6 +161,14 @@ private fun AlbumsTab(
         val next = runCatching { repo.getAlbums(startIndex = albums.size, limit = 40) }.getOrNull().orEmpty()
         if (next.isEmpty()) endReached = true else albums.addAll(next)
         isLoading = false
+    }
+
+    suspend fun refresh() {
+        isRefreshing = true
+        endReached = false
+        albums.clear()
+        loadMore()
+        isRefreshing = false
     }
 
     LaunchedEffect(Unit) {
@@ -195,6 +205,12 @@ private fun AlbumsTab(
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { scope.launch { refresh() } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(
@@ -304,11 +320,12 @@ private fun AlbumsTab(
                     EmptyState(
                         title = "No albums",
                         subtitle = "Nothing to show yet.",
-                        onRefresh = { scope.launch { endReached = false; albums.clear(); loadMore() } },
+                        onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
+    }
     }
 }
 
@@ -325,6 +342,7 @@ private fun ArtistsTab(
     val artists = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
@@ -332,6 +350,14 @@ private fun ArtistsTab(
         val next = runCatching { repo.getArtists(startIndex = artists.size, limit = 40) }.getOrNull().orEmpty()
         if (next.isEmpty()) endReached = true else artists.addAll(next)
         isLoading = false
+    }
+
+    suspend fun refresh() {
+        isRefreshing = true
+        endReached = false
+        artists.clear()
+        loadMore()
+        isRefreshing = false
     }
 
     LaunchedEffect(Unit) {
@@ -362,6 +388,12 @@ private fun ArtistsTab(
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { scope.launch { refresh() } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(
@@ -438,11 +470,12 @@ private fun ArtistsTab(
                     EmptyState(
                         title = "No artists",
                         subtitle = "Nothing to show yet.",
-                        onRefresh = { scope.launch { endReached = false; artists.clear(); loadMore() } },
+                        onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
+    }
     }
 }
 
@@ -462,6 +495,7 @@ private fun PlaylistsTab(
     val playlists = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
@@ -469,6 +503,14 @@ private fun PlaylistsTab(
         val next = runCatching { repo.getPlaylists(startIndex = playlists.size, limit = 40) }.getOrNull().orEmpty()
         if (next.isEmpty()) endReached = true else playlists.addAll(next)
         isLoading = false
+    }
+
+    suspend fun refresh() {
+        isRefreshing = true
+        endReached = false
+        playlists.clear()
+        loadMore()
+        isRefreshing = false
     }
 
     LaunchedEffect(Unit) {
@@ -503,6 +545,12 @@ private fun PlaylistsTab(
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = { scope.launch { refresh() } },
+        modifier = Modifier.fillMaxSize(),
+    ) {
     Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(
@@ -614,11 +662,12 @@ private fun PlaylistsTab(
                     EmptyState(
                         title = "No playlists",
                         subtitle = "Nothing to show yet.",
-                        onRefresh = { scope.launch { endReached = false; playlists.clear(); loadMore() } },
+                        onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
+    }
     }
 }
 

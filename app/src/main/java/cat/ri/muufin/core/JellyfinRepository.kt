@@ -8,13 +8,48 @@ import cat.ri.muufin.model.dto.UserDto
 import retrofit2.HttpException
 
 class JellyfinRepository {
-    private val itemCache = mutableMapOf<String, BaseItemDto>()
-    private val playlistTracksCache = mutableMapOf<String, List<BaseItemDto>>()
-    private val albumTracksCache = mutableMapOf<String, List<BaseItemDto>>()
 
-    fun getCachedItem(id: String): BaseItemDto? = itemCache[id]
-    fun getCachedPlaylistTracks(id: String): List<BaseItemDto>? = playlistTracksCache[id]
-    fun getCachedAlbumTracks(id: String): List<BaseItemDto>? = albumTracksCache[id]
+    private data class CacheEntry<T>(
+        val data: T,
+        val insertedAt: Long = System.currentTimeMillis(),
+    ) {
+        fun isStale(ttlMs: Long): Boolean = System.currentTimeMillis() - insertedAt > ttlMs
+    }
+
+    companion object {
+        private const val CACHE_TTL_MS = 5L * 60 * 1000 // 5 minutes
+    }
+
+    private val itemCache = mutableMapOf<String, CacheEntry<BaseItemDto>>()
+    private val playlistTracksCache = mutableMapOf<String, CacheEntry<List<BaseItemDto>>>()
+    private val albumTracksCache = mutableMapOf<String, CacheEntry<List<BaseItemDto>>>()
+
+    fun getCachedItem(id: String): BaseItemDto? {
+        val entry = itemCache[id] ?: return null
+        return if (entry.isStale(CACHE_TTL_MS)) null else entry.data
+    }
+
+    fun getCachedPlaylistTracks(id: String): List<BaseItemDto>? {
+        val entry = playlistTracksCache[id] ?: return null
+        return if (entry.isStale(CACHE_TTL_MS)) null else entry.data
+    }
+
+    fun getCachedAlbumTracks(id: String): List<BaseItemDto>? {
+        val entry = albumTracksCache[id] ?: return null
+        return if (entry.isStale(CACHE_TTL_MS)) null else entry.data
+    }
+
+    fun clearAllCaches() {
+        itemCache.clear()
+        playlistTracksCache.clear()
+        albumTracksCache.clear()
+    }
+
+    fun invalidateItem(id: String) {
+        itemCache.remove(id)
+        albumTracksCache.remove(id)
+        playlistTracksCache.remove(id)
+    }
 
     private fun api(): JellyfinApi {
         val state = AuthManager.state.value
@@ -75,7 +110,7 @@ class JellyfinRepository {
             put("sortOrder", "Ascending")
             put("enableImages", "true")
         }
-        return api().getItems(qp).items.also { albumTracksCache[albumId] = it }
+        return api().getItems(qp).items.also { albumTracksCache[albumId] = CacheEntry(it) }
     }
 
     suspend fun getArtistAlbums(artistId: String): List<BaseItemDto> {
@@ -102,12 +137,48 @@ class JellyfinRepository {
             put("enableImageTypes", "Primary")
             put("imageTypeLimit", "1")
         }
-        return api().getPlaylistItems(playlistId, qp).items.also { playlistTracksCache[playlistId] = it }
+        return api().getPlaylistItems(playlistId, qp).items.also { playlistTracksCache[playlistId] = CacheEntry(it) }
     }
 
-    suspend fun getItem(itemId: String): BaseItemDto {
+    suspend fun getItem(itemId: String): BaseItemDto? {
+        return try {
+            val s = AuthManager.state.value
+            api().getItem(itemId = itemId, userId = s.userId).also { itemCache[itemId] = CacheEntry(it) }
+        } catch (e: HttpException) {
+            if (e.code() == 404) null else throw e
+        }
+    }
+
+    // Count-only queries for sync change detection (limit=0, just totalRecordCount)
+    suspend fun getAlbumCount(): Int {
         val s = AuthManager.state.value
-        return api().getItem(itemId = itemId, userId = s.userId).also { itemCache[itemId] = it }
+        val qp = buildMap {
+            put("userId", s.userId)
+            put("includeItemTypes", "MusicAlbum")
+            put("recursive", "true")
+            put("limit", "0")
+        }
+        return api().getItems(qp).totalRecordCount ?: 0
+    }
+
+    suspend fun getPlaylistCount(): Int {
+        val s = AuthManager.state.value
+        val qp = buildMap {
+            put("userId", s.userId)
+            put("includeItemTypes", "Playlist")
+            put("recursive", "true")
+            put("limit", "0")
+        }
+        return api().getItems(qp).totalRecordCount ?: 0
+    }
+
+    suspend fun getArtistCount(): Int {
+        val s = AuthManager.state.value
+        val qp = buildMap {
+            put("userId", s.userId)
+            put("limit", "0")
+        }
+        return api().getArtists(qp).totalRecordCount ?: 0
     }
 
     suspend fun search(term: String): List<BaseItemDto> {
@@ -136,20 +207,14 @@ class JellyfinRepository {
         return try {
             val s = AuthManager.state.value
             api().getItemWithMediaStreams(itemId = itemId, userId = s.userId).mediaStreams
-        } catch (e: HttpException) {
-            null
-        } catch (e: Throwable) {
-            null
-        }
+        } catch (e: HttpException) { null }
+        catch (e: Throwable) { null }
     }
 
     suspend fun getLyrics(itemId: String): LyricDto? {
         return try {
             api().getLyrics(itemId)
-        } catch (e: HttpException) {
-            null
-        } catch (e: Throwable) {
-            null
-        }
+        } catch (e: HttpException) { null }
+        catch (e: Throwable) { null }
     }
 }

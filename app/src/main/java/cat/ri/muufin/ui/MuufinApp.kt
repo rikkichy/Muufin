@@ -45,6 +45,7 @@ import androidx.navigation.navArgument
 import cat.ri.muufin.core.AuthManager
 import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
+import cat.ri.muufin.core.SyncManager
 import cat.ri.muufin.ui.components.NowPlayingBar
 import cat.ri.muufin.ui.components.rememberMediaController
 import cat.ri.muufin.ui.components.rememberPlayerUiState
@@ -90,8 +91,15 @@ fun MuufinApp() {
 
     
     LaunchedEffect(auth.isSignedIn) {
-        if (!auth.isSignedIn) showPlayer = false
-        if (auth.isSignedIn) DownloadManager.resumePendingDownloads()
+        if (!auth.isSignedIn) {
+            showPlayer = false
+            SyncManager.stopPeriodicSync()
+        }
+        if (auth.isSignedIn) {
+            DownloadManager.resumePendingDownloads()
+            SyncManager.startPeriodicSync()
+            SyncManager.validateDownloads()
+        }
     }
 
     val backStackEntry by nav.currentBackStackEntryAsState()

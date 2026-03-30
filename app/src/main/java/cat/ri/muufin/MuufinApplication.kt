@@ -20,6 +20,7 @@ import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.HttpClients
 import cat.ri.muufin.core.PlayerManager
 import cat.ri.muufin.core.SettingsManager
+import cat.ri.muufin.core.SyncManager
 import cat.ri.muufin.player.PlaybackService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +34,7 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
         SettingsManager.init(this)
         PlayerManager.init(this)
         DownloadManager.init(this)
+        SyncManager.init(this)
         createPlaybackNotificationChannel()
         cleanupLegacyCaches()
         warmupImageCache()
