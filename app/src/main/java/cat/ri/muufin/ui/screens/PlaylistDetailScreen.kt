@@ -303,8 +303,7 @@ fun PlaylistDetailScreen(
                                 scope.launch {
                                     if (tracks.isNotEmpty()) {
                                         PlayerManager.setQueueSource(playlistId)
-                                        PlayerManager.playQueue(tracks)
-                                        onOpenPlayer()
+                                        if (PlayerManager.playQueue(tracks)) onOpenPlayer()
                                     }
                                 }
                             },
@@ -312,8 +311,7 @@ fun PlaylistDetailScreen(
                                 scope.launch {
                                     if (tracks.isNotEmpty()) {
                                         PlayerManager.setQueueSource(playlistId)
-                                        PlayerManager.playQueue(tracks.shuffled())
-                                        onOpenPlayer()
+                                        if (PlayerManager.playQueue(tracks.shuffled())) onOpenPlayer()
                                     }
                                 }
                             },
@@ -357,8 +355,8 @@ fun PlaylistDetailScreen(
                             onClick = {
                                 scope.launch {
                                     PlayerManager.setQueueSource(playlistId)
-                                    PlayerManager.playQueue(tracks, startIndex = originalIndex)
-                                    onOpenPlayer()
+                                    if (PlayerManager.playQueue(tracks, startIndex = originalIndex))
+                                        onOpenPlayer()
                                 }
                             },
                             downloadState = dlState,

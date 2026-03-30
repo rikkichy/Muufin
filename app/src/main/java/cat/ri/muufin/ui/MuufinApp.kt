@@ -271,7 +271,7 @@ fun MuufinApp() {
 
 
             
-            if (auth.isSignedIn && showPlayer) {
+            if (auth.isSignedIn && showPlayer && controller != null) {
                 val density = LocalDensity.current
                 val sheetState = remember {
                     SheetState(

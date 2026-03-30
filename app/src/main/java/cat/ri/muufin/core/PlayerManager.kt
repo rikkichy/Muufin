@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.concurrent.Executors
 
 object PlayerManager {
@@ -71,14 +72,14 @@ object PlayerManager {
 
     suspend fun controller(): MediaController {
         val future = ensureFuture()
-        return awaitFuture(future)
+        return withTimeout(5000L) { awaitFuture(future) }
     }
 
-    suspend fun playQueue(items: List<BaseItemDto>, startId: String? = null, startIndex: Int? = null) {
-        runCatching {
+    suspend fun playQueue(items: List<BaseItemDto>, startId: String? = null, startIndex: Int? = null): Boolean {
+        return runCatching {
             if (!notificationsAllowed()) {
                 Log.w(TAG, "Playback blocked: POST_NOTIFICATIONS permission not granted")
-                return
+                return false
             }
 
             val c = controller()
@@ -95,9 +96,8 @@ object PlayerManager {
             c.prepare()
             c.play()
         }.onFailure {
-            
             Log.e(TAG, "playQueue failed", it)
-        }
+        }.isSuccess
     }
 
     fun setQueueSource(id: String) {

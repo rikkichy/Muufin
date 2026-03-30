@@ -140,16 +140,14 @@ fun AlbumDetailScreen(
                         trackCount = tracks.size,
                         onPlay = {
                             scope.launch {
-                                if (tracks.isNotEmpty()) {
-                                    PlayerManager.playQueue(tracks)
+                                if (tracks.isNotEmpty() && PlayerManager.playQueue(tracks)) {
                                     onOpenPlayer()
                                 }
                             }
                         },
                         onShuffle = {
                             scope.launch {
-                                if (tracks.isNotEmpty()) {
-                                    PlayerManager.playQueue(tracks.shuffled())
+                                if (tracks.isNotEmpty() && PlayerManager.playQueue(tracks.shuffled())) {
                                     onOpenPlayer()
                                 }
                             }
@@ -176,8 +174,8 @@ fun AlbumDetailScreen(
                         duration = item.durationLabel(),
                         onClick = {
                             scope.launch {
-                                PlayerManager.playQueue(tracks, startIndex = index)
-                                onOpenPlayer()
+                                if (PlayerManager.playQueue(tracks, startIndex = index))
+                                    onOpenPlayer()
                             }
                         },
                         downloadState = dlState,
