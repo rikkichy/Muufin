@@ -138,5 +138,10 @@ object JellyfinUrls {
         return "$base/Audio/$itemId/universal?" + qp.entries.joinToString("&") { "${it.key}=${url(it.value)}" }
     }
 
+    fun itemDownload(state: AuthState, itemId: String): String {
+        val base = state.baseUrl.trim().removeSuffix("/")
+        return "$base/Items/$itemId/Download?api_key=${url(state.accessToken)}"
+    }
+
     private fun url(s: String): String = URLEncoder.encode(s, StandardCharsets.UTF_8.name())
 }

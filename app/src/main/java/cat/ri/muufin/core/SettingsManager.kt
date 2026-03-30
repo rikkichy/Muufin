@@ -28,6 +28,7 @@ object SettingsManager {
     private val KEY_ENABLE_PLAYBACK_REPORTING = booleanPreferencesKey("enable_playback_reporting")
     private val KEY_DEFAULT_LIBRARY_TAB = intPreferencesKey("default_library_tab")
     private val KEY_LIBRARY_LAYOUT = intPreferencesKey("library_layout")
+    private val KEY_OFFLINE_MODE = booleanPreferencesKey("offline_mode")
 
     private lateinit var store: DataStore<Preferences>
 
@@ -44,6 +45,9 @@ object SettingsManager {
     private val _libraryLayout = MutableStateFlow(1)
     val libraryLayout: StateFlow<Int> = _libraryLayout.asStateFlow()
 
+    private val _offlineMode = MutableStateFlow(false)
+    val offlineMode: StateFlow<Boolean> = _offlineMode.asStateFlow()
+
     fun init(context: Context) {
         val appContext = context.applicationContext
 
@@ -58,6 +62,7 @@ object SettingsManager {
                 _enablePlaybackReporting.value = prefs[KEY_ENABLE_PLAYBACK_REPORTING] ?: true
                 _defaultLibraryTab.value = (prefs[KEY_DEFAULT_LIBRARY_TAB] ?: 0).coerceIn(0, 2)
                 _libraryLayout.value = (prefs[KEY_LIBRARY_LAYOUT] ?: 0).coerceIn(0, 1)
+                _offlineMode.value = prefs[KEY_OFFLINE_MODE] ?: false
             }
         }
     }
@@ -76,5 +81,9 @@ object SettingsManager {
 
     suspend fun setLibraryLayout(layout: Int) {
         store.edit { it[KEY_LIBRARY_LAYOUT] = layout.coerceIn(0, 1) }
+    }
+
+    suspend fun setOfflineMode(enabled: Boolean) {
+        store.edit { it[KEY_OFFLINE_MODE] = enabled }
     }
 }

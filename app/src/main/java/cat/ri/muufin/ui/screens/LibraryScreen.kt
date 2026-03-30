@@ -81,7 +81,6 @@ fun LibraryScreen(
                 ToggleButton(
                     checked = isSelected,
                     onCheckedChange = { checked ->
-
                         if (checked) tab = value
                     },
                     modifier = Modifier

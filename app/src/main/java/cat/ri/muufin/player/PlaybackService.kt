@@ -212,7 +212,9 @@ class PlaybackService : MediaSessionService() {
 
         val tag = cfg.tag as? PlaybackUris ?: return
 
-        
+        // Don't fallback local files — there's no HLS equivalent
+        if (tag.isLocal) return
+
         if (tag.mode != PlaybackUris.Mode.DIRECT || tag.hasFallenBack) return
 
         
@@ -245,6 +247,7 @@ class PlaybackService : MediaSessionService() {
     override fun onDestroy() {
         runCatching { playbackReporter.release() }
         serviceScope.cancel()
+        mediaSession.player.stop()
         mediaSession.player.release()
         mediaSession.release()
         super.onDestroy()

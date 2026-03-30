@@ -42,6 +42,7 @@ object PlayerManager {
             runCatching { MediaController.releaseFuture(it) }
         }
         controllerFuture = null
+        executor.shutdown()
     }
 
     fun init(context: Context) {
@@ -114,9 +115,52 @@ object PlayerManager {
 
     private fun BaseItemDto.toMediaItem(auth: AuthState): MediaItem {
         val primaryTag = imageTags["Primary"]
-        
         val artworkItemId = if (!primaryTag.isNullOrBlank()) id else (albumId ?: id)
 
+        // Check for downloaded local file first
+        val localUri = DownloadManager.getLocalUri(id)
+        if (localUri != null) {
+            // Use local artwork if available, else remote
+            val localArtwork = java.io.File(DownloadManager.getArtworkDir(), "$id.jpg")
+            val artworkUri = if (localArtwork.exists()) {
+                android.net.Uri.fromFile(localArtwork)
+            } else {
+                runCatching {
+                    JellyfinUrls.itemImage(state = auth, itemId = artworkItemId, tag = primaryTag, maxWidth = 480)
+                }.getOrNull()
+                    ?.let { url ->
+                        val sep = if (url.contains("?")) "&" else "?"
+                        url + sep + "ApiKey=" + URLEncoder.encode(auth.accessToken, StandardCharsets.UTF_8.name())
+                    }
+                    ?.let { android.net.Uri.parse(it) }
+            }
+
+            val meta = MediaMetadata.Builder()
+                .setTitle(name)
+                .setArtist(artists.joinToString())
+                .setAlbumTitle(album)
+                .setArtworkUri(artworkUri)
+                .build()
+
+            return MediaItem.Builder()
+                .setMediaId(id)
+                .setUri(localUri)
+                .setMediaMetadata(meta)
+                .setTag(
+                    PlaybackUris(
+                        directPlayUrl = localUri.toString(),
+                        hlsUrl = "",
+                        mode = PlaybackUris.Mode.DIRECT,
+                        hasFallenBack = false,
+                        artworkItemId = artworkItemId,
+                        artworkTag = primaryTag,
+                        isLocal = true,
+                    )
+                )
+                .build()
+        }
+
+        // Remote playback (existing flow)
         val artworkUri = runCatching {
             JellyfinUrls.itemImage(
                 state = auth,
@@ -125,9 +169,6 @@ object PlayerManager {
                 maxWidth = 480,
             )
         }.getOrNull()
-            
-            
-            
             ?.let { url ->
                 val sep = if (url.contains("?")) "&" else "?"
                 url + sep + "ApiKey=" + URLEncoder.encode(auth.accessToken, StandardCharsets.UTF_8.name())
@@ -149,10 +190,8 @@ object PlayerManager {
         val hlsUrl = JellyfinUrls.audioHlsPlaylist(
             state = auth,
             itemId = id,
-            
             audioCodec = "mp3",
             segmentContainer = "mp3",
-            
             allowAudioStreamCopy = true,
         )
 

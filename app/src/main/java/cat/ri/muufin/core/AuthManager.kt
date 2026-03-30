@@ -165,6 +165,7 @@ object AuthManager {
 
         HttpClients.rebuild()
         scope.launch { PlayerManager.stopPlayback() }
+        DownloadManager.cancelAll()
     }
 
     private fun persist(state: AuthState) {

@@ -19,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
+import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Search
@@ -41,13 +44,17 @@ import coil3.request.ImageRequest
 
 
 import cat.ri.muufin.core.AuthManager
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.core.JellyfinUrls
 import cat.ri.muufin.core.PlayerManager
+import cat.ri.muufin.core.SettingsManager
 import cat.ri.muufin.model.dto.BaseItemDto
+import cat.ri.muufin.model.dto.DownloadTaskStatus
 import cat.ri.muufin.model.durationLabel
 import cat.ri.muufin.model.primaryImageTag
 import cat.ri.muufin.ui.components.PlayerUiState
+import cat.ri.muufin.ui.components.TrackDownloadState
 import cat.ri.muufin.ui.components.TrackRow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -275,15 +282,23 @@ fun PlaylistDetailScreen(
                     }
 
                     val authState = AuthManager.state.value
+                    val downloadedIds by DownloadManager.downloadedIds.collectAsState()
+                    val downloadQueue by DownloadManager.queue.collectAsState()
+                    val offlineMode by SettingsManager.offlineMode.collectAsState()
+
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentPadding = PaddingValues(bottom = 100.dp),
                 ) {
                     item(contentType = "playlist_header") {
+                        val plAllDownloaded = tracks.isNotEmpty() && tracks.all { it.id in downloadedIds }
+                        val plAnyDownloading = tracks.any { t ->
+                            downloadQueue.any { it.trackId == t.id && (it.status == DownloadTaskStatus.PENDING || it.status == DownloadTaskStatus.DOWNLOADING) }
+                        }
                         PlaylistHeader(
                             playlist = playlist,
-                            trackCount = tracks.size,
+                            trackCount = displayTracks.size,
                             onPlay = {
                                 scope.launch {
                                     if (tracks.isNotEmpty()) {
@@ -302,6 +317,11 @@ fun PlaylistDetailScreen(
                                     }
                                 }
                             },
+                            onDownload = {
+                                if (!plAllDownloaded) DownloadManager.enqueueAll(tracks)
+                            },
+                            allDownloaded = plAllDownloaded,
+                            anyDownloading = plAnyDownloading,
                         )
                     }
 
@@ -321,6 +341,12 @@ fun PlaylistDetailScreen(
                                 maxWidth = 64,
                             )
                         }
+                        val dlState = when {
+                            item.id in downloadedIds -> TrackDownloadState.DOWNLOADED
+                            downloadQueue.any { it.trackId == item.id && it.status == DownloadTaskStatus.DOWNLOADING } -> TrackDownloadState.DOWNLOADING
+                            downloadQueue.any { it.trackId == item.id } -> TrackDownloadState.PENDING
+                            else -> TrackDownloadState.NONE
+                        }
                         TrackRow(
                             index = originalIndex,
                             title = item.name,
@@ -335,6 +361,11 @@ fun PlaylistDetailScreen(
                                     onOpenPlayer()
                                 }
                             },
+                            downloadState = dlState,
+                            onDownloadClick = if (dlState == TrackDownloadState.NONE) {
+                                { DownloadManager.enqueue(item) }
+                            } else null,
+                            enabled = !offlineMode || item.id in downloadedIds,
                         )
                     }
                 }
@@ -368,6 +399,9 @@ private fun PlaylistHeader(
     trackCount: Int,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    onDownload: () -> Unit = {},
+    allDownloaded: Boolean = false,
+    anyDownloading: Boolean = false,
 ) {
     val haptics = rememberMuufinHaptics()
     val s = AuthManager.state.value
@@ -436,6 +470,30 @@ private fun PlaylistHeader(
                     }
                 }
             }
+        }
+        FilledTonalButton(
+            onClick = {
+                haptics.tap()
+                onDownload()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = when {
+                    allDownloaded -> Icons.Rounded.DownloadDone
+                    anyDownloading -> Icons.Rounded.Downloading
+                    else -> Icons.Rounded.Download
+                },
+                contentDescription = null,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                when {
+                    allDownloaded -> "Downloaded"
+                    anyDownloading -> "Downloading..."
+                    else -> "Download"
+                }
+            )
         }
         HorizontalDivider()
     }

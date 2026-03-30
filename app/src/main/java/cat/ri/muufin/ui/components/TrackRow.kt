@@ -8,6 +8,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -38,6 +45,9 @@ fun TrackRow(
     leadingImageUrl: String? = null,
     leadingImageContentDescription: String? = null,
     leadingImageSize: Dp = 40.dp,
+    downloadState: TrackDownloadState = TrackDownloadState.NONE,
+    onDownloadClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val haptics = rememberMuufinHaptics()
     val interactionSource = remember { MutableInteractionSource() }
@@ -60,8 +70,10 @@ fun TrackRow(
         shape = shape,
         modifier = modifier.fillMaxWidth().padding(horizontal = if (isPlaying) 8.dp else 0.dp),
         onClick = {
-            haptics.tap()
-            onClick()
+            if (enabled) {
+                haptics.tap()
+                onClick()
+            }
         },
         interactionSource = interactionSource,
     ) {
@@ -71,6 +83,7 @@ fun TrackRow(
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
+                    alpha = if (enabled) 1f else 0.4f
                 }
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -127,6 +140,48 @@ fun TrackRow(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            when (downloadState) {
+                TrackDownloadState.NONE -> {
+                    if (onDownloadClick != null) {
+                        IconButton(
+                            onClick = {
+                                haptics.tap()
+                                onDownloadClick()
+                            },
+                            modifier = Modifier.size(32.dp),
+                        ) {
+                            Icon(
+                                Icons.Rounded.Download,
+                                contentDescription = "Download",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                TrackDownloadState.PENDING -> {
+                    Icon(
+                        Icons.Rounded.Schedule,
+                        contentDescription = "Queued",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TrackDownloadState.DOWNLOADING -> {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                    )
+                }
+                TrackDownloadState.DOWNLOADED -> {
+                    Icon(
+                        Icons.Rounded.CheckCircle,
+                        contentDescription = "Downloaded",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
         }
     }

@@ -21,10 +21,13 @@ import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Brush
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cat.ri.muufin.core.AuthManager
 import cat.ri.muufin.core.BuildInfo
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.core.JellyfinUrls
 import cat.ri.muufin.core.SettingsManager
@@ -82,6 +86,8 @@ fun SettingsScreen(
     val privateMode by SettingsManager.enablePlaybackReporting.collectAsState()
     val defaultTab by SettingsManager.defaultLibraryTab.collectAsState()
     val libraryLayout by SettingsManager.libraryLayout.collectAsState()
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
+    val catalog by DownloadManager.catalog.collectAsState()
 
     var userName by remember { mutableStateOf<String?>(null) }
     var serverInfo by remember { mutableStateOf<PublicSystemInfoDto?>(null) }
@@ -171,6 +177,31 @@ fun SettingsScreen(
                                 onCheckedChange = { enabled ->
                                     haptics.toggle()
                                     scope.launch { SettingsManager.setEnablePlaybackReporting(!enabled) }
+                                }
+                            )
+                        }
+
+                        HorizontalDivider()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Offline mode")
+                                Text(
+                                    "Only show downloaded music in your library.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.size(12.dp))
+                            Switch(
+                                checked = offlineMode,
+                                onCheckedChange = { enabled ->
+                                    haptics.toggle()
+                                    scope.launch { SettingsManager.setOfflineMode(enabled) }
                                 }
                             )
                         }
@@ -387,6 +418,68 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                    }
+                }
+
+                // Downloads storage card
+                if (catalog.tracks.isNotEmpty()) {
+                    var showClearDialog by remember { mutableStateOf(false) }
+                    val totalSize = remember(catalog) {
+                        val bytes = catalog.tracks.sumOf { it.fileSizeBytes }
+                        when {
+                            bytes < 1024L -> "$bytes B"
+                            bytes < 1024L * 1024 -> "%.1f KB".format(bytes / 1024.0)
+                            bytes < 1024L * 1024 * 1024 -> "%.1f MB".format(bytes / (1024.0 * 1024))
+                            else -> "%.2f GB".format(bytes / (1024.0 * 1024 * 1024))
+                        }
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Download, contentDescription = null)
+                                Spacer(Modifier.size(8.dp))
+                                Text("Downloads", style = MaterialTheme.typography.titleMedium)
+                            }
+                            Text(
+                                "$totalSize · ${catalog.tracks.size} tracks",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Button(
+                                onClick = { showClearDialog = true },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Remove all downloads")
+                            }
+                        }
+                    }
+
+                    if (showClearDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showClearDialog = false },
+                            title = { Text("Remove all downloads?") },
+                            text = { Text("This will delete all downloaded tracks from your device.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    DownloadManager.removeAll()
+                                    showClearDialog = false
+                                }) {
+                                    Text("Remove all")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            },
+                        )
                     }
                 }
 

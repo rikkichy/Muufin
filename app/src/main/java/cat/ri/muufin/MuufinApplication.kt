@@ -16,6 +16,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import coil3.util.DebugLogger
 import cat.ri.muufin.core.AuthManager
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.HttpClients
 import cat.ri.muufin.core.PlayerManager
 import cat.ri.muufin.core.SettingsManager
@@ -31,6 +32,7 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
         AuthManager.init(this)
         SettingsManager.init(this)
         PlayerManager.init(this)
+        DownloadManager.init(this)
         createPlaybackNotificationChannel()
         cleanupLegacyCaches()
         warmupImageCache()

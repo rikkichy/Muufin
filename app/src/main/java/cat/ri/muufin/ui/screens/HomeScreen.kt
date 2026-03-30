@@ -3,13 +3,18 @@ package cat.ri.muufin.ui.screens
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import cat.ri.muufin.core.JellyfinRepository
+import cat.ri.muufin.ui.util.rememberMuufinHaptics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,11 +24,21 @@ fun HomeScreen(
     onOpenArtist: (String) -> Unit,
     onOpenPlaylist: (String) -> Unit,
     onOpenPlayer: () -> Unit,
+    onOpenDownloads: () -> Unit = {},
 ) {
+    val haptics = rememberMuufinHaptics()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Muufin") },
+                actions = {
+                    IconButton(onClick = {
+                        haptics.tap()
+                        onOpenDownloads()
+                    }) {
+                        Icon(Icons.Rounded.Download, contentDescription = "Downloads")
+                    }
+                },
             )
         },
     ) { padding ->

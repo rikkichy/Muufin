@@ -629,7 +629,8 @@ private fun QuickConnectDialog(
         val api = JellyfinApi.create(tmpState)
         val authHeader = JellyfinAuthorization.buildFrom(tmpState, includeToken = false)
 
-        while (true) {
+        val deadline = System.currentTimeMillis() + 5 * 60 * 1000L
+        while (System.currentTimeMillis() < deadline) {
             delay(1000)
 
             val poll = runCatching { api.checkQuickConnect(secret = sec) }.getOrNull() ?: continue
@@ -649,6 +650,9 @@ private fun QuickConnectDialog(
                 }
                 break
             }
+        }
+        if (System.currentTimeMillis() >= deadline) {
+            error = "QuickConnect timed out. Please try again."
         }
     }
 }

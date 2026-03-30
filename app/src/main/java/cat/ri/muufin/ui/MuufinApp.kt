@@ -43,6 +43,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cat.ri.muufin.core.AuthManager
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.ui.components.NowPlayingBar
 import cat.ri.muufin.ui.components.rememberMediaController
@@ -52,6 +53,7 @@ import cat.ri.muufin.ui.screens.ArtistDetailScreen
 import cat.ri.muufin.ui.screens.HomeScreen
 import cat.ri.muufin.ui.screens.LoginScreen
 import cat.ri.muufin.ui.screens.PlayerScreen
+import cat.ri.muufin.ui.screens.DownloadsScreen
 import cat.ri.muufin.ui.screens.PlaylistDetailScreen
 import cat.ri.muufin.ui.screens.SettingsScreen
 import cat.ri.muufin.ui.theme.MuufinTheme
@@ -64,6 +66,7 @@ object Routes {
     const val ARTIST = "artist"
     const val PLAYLIST = "playlist"
     const val SETTINGS = "settings"
+    const val DOWNLOADS = "downloads"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +91,7 @@ fun MuufinApp() {
     
     LaunchedEffect(auth.isSignedIn) {
         if (!auth.isSignedIn) showPlayer = false
+        if (auth.isSignedIn) DownloadManager.resumePendingDownloads()
     }
 
     val backStackEntry by nav.currentBackStackEntryAsState()
@@ -161,6 +165,7 @@ fun MuufinApp() {
                             onOpenArtist = { nav.navigate("${Routes.ARTIST}/$it") },
                             onOpenPlaylist = { nav.navigate("${Routes.PLAYLIST}/$it") },
                             onOpenPlayer = { showPlayer = true },
+                            onOpenDownloads = { nav.navigate(Routes.DOWNLOADS) },
                         )
                     }
 
@@ -178,6 +183,19 @@ fun MuufinApp() {
                                     popUpTo(Routes.HOME) { inclusive = true }
                                 }
                             }
+                        )
+                    }
+
+                    composable(
+                        route = Routes.DOWNLOADS,
+                        enterTransition = { slideInHorizontally(tween(300)) { it / 4 } + fadeIn(tween(300)) },
+                        exitTransition = { fadeOut(tween(150)) },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { slideOutHorizontally(tween(300)) { it / 4 } + fadeOut(tween(300)) },
+                    ) {
+                        DownloadsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenPlayer = { showPlayer = true },
                         )
                     }
 

@@ -16,9 +16,11 @@ import cat.ri.muufin.model.dto.QuickConnectAuthRequestDto
 import cat.ri.muufin.model.dto.QuickConnectInitiateResponseDto
 import cat.ri.muufin.model.dto.QuickConnectConnectResponseDto
 import cat.ri.muufin.model.dto.LyricDto
+import cat.ri.muufin.model.dto.PlaybackInfoResponse
 import cat.ri.muufin.model.dto.UserDto
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody
 import retrofit2.Retrofit
 import retrofit2.http.*
 
@@ -97,6 +99,18 @@ interface JellyfinApi {
     suspend fun getLyrics(
         @Path("itemId") itemId: String,
     ): LyricDto
+
+    @Streaming
+    @GET("Items/{itemId}/Download")
+    suspend fun downloadItem(
+        @Path("itemId") itemId: String,
+    ): ResponseBody
+
+    @GET("Items/{itemId}/PlaybackInfo")
+    suspend fun getPlaybackInfo(
+        @Path("itemId") itemId: String,
+        @Query("userId") userId: String,
+    ): PlaybackInfoResponse
 
     companion object {
         private val json = Json {

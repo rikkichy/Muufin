@@ -6,6 +6,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.DownloadDone
+import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.*
@@ -16,13 +19,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import cat.ri.muufin.core.AuthManager
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.core.JellyfinUrls
 import cat.ri.muufin.core.PlayerManager
+import cat.ri.muufin.core.SettingsManager
 import cat.ri.muufin.model.dto.BaseItemDto
+import cat.ri.muufin.model.dto.DownloadTaskStatus
 import cat.ri.muufin.model.durationLabel
 import cat.ri.muufin.model.primaryImageTag
 import cat.ri.muufin.ui.components.PlayerUiState
+import cat.ri.muufin.ui.components.TrackDownloadState
 import cat.ri.muufin.ui.components.TrackRow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -114,6 +121,15 @@ fun AlbumDetailScreen(
             }
 
             val headerAlbum = album
+            val downloadedIds by DownloadManager.downloadedIds.collectAsState()
+            val downloadQueue by DownloadManager.queue.collectAsState()
+            val offlineMode by SettingsManager.offlineMode.collectAsState()
+
+            val allDownloaded = tracks.isNotEmpty() && tracks.all { it.id in downloadedIds }
+            val anyDownloading = tracks.any { t ->
+                downloadQueue.any { it.trackId == t.id && (it.status == DownloadTaskStatus.PENDING || it.status == DownloadTaskStatus.DOWNLOADING) }
+            }
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 100.dp),
@@ -138,10 +154,21 @@ fun AlbumDetailScreen(
                                 }
                             }
                         },
+                        onDownload = {
+                            if (!allDownloaded) DownloadManager.enqueueAll(tracks)
+                        },
+                        allDownloaded = allDownloaded,
+                        anyDownloading = anyDownloading,
                     )
                 }
 
                 itemsIndexed(tracks, key = { _, it -> it.id }, contentType = { _, _ -> "track_row" }) { index, item ->
+                    val dlState = when {
+                        item.id in downloadedIds -> TrackDownloadState.DOWNLOADED
+                        downloadQueue.any { it.trackId == item.id && it.status == DownloadTaskStatus.DOWNLOADING } -> TrackDownloadState.DOWNLOADING
+                        downloadQueue.any { it.trackId == item.id } -> TrackDownloadState.PENDING
+                        else -> TrackDownloadState.NONE
+                    }
                     TrackRow(
                         index = index,
                         title = item.name,
@@ -153,6 +180,11 @@ fun AlbumDetailScreen(
                                 onOpenPlayer()
                             }
                         },
+                        downloadState = dlState,
+                        onDownloadClick = if (dlState == TrackDownloadState.NONE) {
+                            { DownloadManager.enqueue(item) }
+                        } else null,
+                        enabled = !offlineMode || item.id in downloadedIds,
                     )
                 }
             }
@@ -166,6 +198,9 @@ private fun AlbumHeader(
     trackCount: Int,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    onDownload: () -> Unit = {},
+    allDownloaded: Boolean = false,
+    anyDownloading: Boolean = false,
 ) {
     val haptics = rememberMuufinHaptics()
     val s = AuthManager.state.value
@@ -235,8 +270,31 @@ private fun AlbumHeader(
                 }
             }
         }
+        FilledTonalButton(
+            onClick = {
+                haptics.tap()
+                onDownload()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(
+                imageVector = when {
+                    allDownloaded -> Icons.Rounded.DownloadDone
+                    anyDownloading -> Icons.Rounded.Downloading
+                    else -> Icons.Rounded.Download
+                },
+                contentDescription = null,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                when {
+                    allDownloaded -> "Downloaded"
+                    anyDownloading -> "Downloading..."
+                    else -> "Download"
+                }
+            )
+        }
         HorizontalDivider()
     }
 }
-
 
