@@ -293,13 +293,36 @@ class DownloadService : Service() {
             val client = HttpClients.imageOkHttp()
             client.newCall(Request.Builder().url(url).build()).execute().use { response ->
                 if (response.isSuccessful) {
-                    val artworkFile = File(DownloadManager.getArtworkDir(), "${task.trackId}.jpg")
+                    val artworkDir = DownloadManager.getArtworkDir()
+                    val tmpFile = File(artworkDir, "${task.trackId}.jpg.tmp")
+                    val finalFile = File(artworkDir, "${task.trackId}.jpg")
                     response.body.byteStream().use { input ->
-                        artworkFile.outputStream().use { output -> input.copyTo(output) }
+                        tmpFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    // Validate: minimum size and JPEG magic bytes
+                    if (tmpFile.length() < 100 || !isValidJpeg(tmpFile)) {
+                        tmpFile.delete()
+                        Log.w(TAG, "Artwork for ${task.trackId} failed validation, discarded")
+                        return@runCatching
+                    }
+                    if (!tmpFile.renameTo(finalFile)) {
+                        tmpFile.copyTo(finalFile, overwrite = true)
+                        tmpFile.delete()
                     }
                 }
             }
         }.onFailure { Log.w(TAG, "Artwork download failed for ${task.trackId}", it) }
+    }
+
+    private fun isValidJpeg(file: File): Boolean {
+        return runCatching {
+            file.inputStream().use { stream ->
+                val header = ByteArray(3)
+                if (stream.read(header) < 3) return@runCatching false
+                // JPEG magic: FF D8 FF
+                header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() && header[2] == 0xFF.toByte()
+            }
+        }.getOrDefault(false)
     }
 
     private fun contentTypeToExtension(contentType: String?): String? {

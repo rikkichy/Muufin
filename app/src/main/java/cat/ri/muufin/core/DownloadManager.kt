@@ -7,6 +7,8 @@ import android.os.Environment
 import android.os.StatFs
 import android.util.Log
 import cat.ri.muufin.model.dto.BaseItemDto
+import cat.ri.muufin.model.dto.CachedPlaylist
+import cat.ri.muufin.model.dto.CachedPlaylistStore
 import cat.ri.muufin.model.dto.DownloadCatalog
 import cat.ri.muufin.model.dto.DownloadTask
 import cat.ri.muufin.model.dto.DownloadTaskStatus
@@ -31,6 +33,7 @@ object DownloadManager {
     private const val CATALOG_FILE = "catalog.json"
     private const val CATALOG_BACKUP_FILE = "catalog.json.backup"
     private const val QUEUE_FILE = "queue.json"
+    private const val PLAYLISTS_FILE = "playlists.json"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -60,6 +63,9 @@ object DownloadManager {
 
     private val _cancelled = MutableStateFlow(false)
     val cancelled: StateFlow<Boolean> = _cancelled.asStateFlow()
+
+    private val _cachedPlaylists = MutableStateFlow<List<CachedPlaylist>>(emptyList())
+    val cachedPlaylists: StateFlow<List<CachedPlaylist>> = _cachedPlaylists.asStateFlow()
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -98,6 +104,8 @@ object DownloadManager {
                         else it
                     }
                 persistQueueSync()
+
+                _cachedPlaylists.value = loadCachedPlaylists()
 
                 // Clean up orphan temp files
                 downloadsDir.listFiles()?.filter { it.extension == "tmp" }?.forEach { it.delete() }
@@ -435,6 +443,93 @@ object DownloadManager {
                 tmp.delete()
             }
         }.onFailure { Log.e(TAG, "Failed to persist queue", it) }
+    }
+
+    // --- Playlist Metadata Cache ---
+
+    fun cachePlaylist(playlist: BaseItemDto, trackIds: List<String>) {
+        scope.launch {
+            mutex.withLock {
+                val entry = CachedPlaylist(
+                    id = playlist.id,
+                    name = playlist.name,
+                    imageTags = playlist.imageTags,
+                    trackIds = trackIds,
+                )
+                val updated = _cachedPlaylists.value.filter { it.id != playlist.id } + entry
+                _cachedPlaylists.value = updated
+                persistPlaylistsSync()
+            }
+
+            // Download playlist cover artwork in background
+            runCatching {
+                val auth = AuthManager.state.value
+                if (auth.baseUrl.isBlank()) return@runCatching
+                val tag = playlist.imageTags["Primary"]
+                val url = JellyfinUrls.itemImage(
+                    state = auth,
+                    itemId = playlist.id,
+                    tag = tag,
+                    maxWidth = 480,
+                    quality = 90,
+                )
+                val tmpFile = File(artworkDir, "${playlist.id}_playlist.jpg.tmp")
+                val finalFile = File(artworkDir, "${playlist.id}_playlist.jpg")
+                val client = HttpClients.imageOkHttp()
+                val request = okhttp3.Request.Builder().url(url).build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        response.body.byteStream().use { input ->
+                            tmpFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        // Validate JPEG
+                        if (tmpFile.length() < 100 || !isValidJpeg(tmpFile)) {
+                            tmpFile.delete()
+                            Log.w(TAG, "Playlist cover for ${playlist.id} failed validation")
+                            return@runCatching
+                        }
+                        if (!tmpFile.renameTo(finalFile)) {
+                            tmpFile.copyTo(finalFile, overwrite = true)
+                            tmpFile.delete()
+                        }
+                    }
+                }
+            }.onFailure { Log.w(TAG, "Playlist cover download failed for ${playlist.id}", it) }
+        }
+    }
+
+    private fun loadCachedPlaylists(): List<CachedPlaylist> {
+        val file = File(metadataDir, PLAYLISTS_FILE)
+        if (!file.exists()) return emptyList()
+        return runCatching {
+            json.decodeFromString<CachedPlaylistStore>(file.readText()).playlists
+        }.getOrElse {
+            Log.e(TAG, "Failed to load cached playlists", it)
+            emptyList()
+        }
+    }
+
+    private fun persistPlaylistsSync() {
+        runCatching {
+            val file = File(metadataDir, PLAYLISTS_FILE)
+            val tmp = File(metadataDir, "$PLAYLISTS_FILE.tmp")
+            val store = CachedPlaylistStore(playlists = _cachedPlaylists.value)
+            tmp.writeText(json.encodeToString(CachedPlaylistStore.serializer(), store))
+            if (!tmp.renameTo(file)) {
+                tmp.copyTo(file, overwrite = true)
+                tmp.delete()
+            }
+        }.onFailure { Log.e(TAG, "Failed to persist playlists cache", it) }
+    }
+
+    private fun isValidJpeg(file: File): Boolean {
+        return runCatching {
+            file.inputStream().use { stream ->
+                val header = ByteArray(3)
+                if (stream.read(header) < 3) return@runCatching false
+                header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() && header[2] == 0xFF.toByte()
+            }
+        }.getOrDefault(false)
     }
 
     private fun startService() {

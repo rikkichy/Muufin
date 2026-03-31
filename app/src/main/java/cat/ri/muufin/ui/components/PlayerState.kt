@@ -19,6 +19,8 @@ data class PlayerUiState(
     val mediaId: String = "",
     val coverItemId: String = "",
     val coverTag: String? = null,
+    val isLocal: Boolean = false,
+    val artworkBytes: ByteArray? = null,
 )
 
 @Composable
@@ -58,6 +60,8 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                         mediaId = mediaItem?.mediaId.orEmpty(),
                         coverItemId = tag?.artworkItemId ?: mediaItem?.mediaId.orEmpty(),
                         coverTag = tag?.artworkTag,
+                        isLocal = tag?.isLocal ?: false,
+                        artworkBytes = null,
                     )
                 }
 
@@ -65,7 +69,8 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                     state.value = state.value.copy(
                         title = mediaMetadata.title?.toString().orEmpty(),
                         artist = mediaMetadata.artist?.toString().orEmpty(),
-                        artworkUri = mediaMetadata.artworkUri,
+                        artworkUri = mediaMetadata.artworkUri ?: state.value.artworkUri,
+                        artworkBytes = mediaMetadata.artworkData ?: state.value.artworkBytes,
                     )
                 }
 
@@ -96,6 +101,7 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                 mediaId = item?.mediaId.orEmpty(),
                 coverItemId = initTag?.artworkItemId ?: item?.mediaId.orEmpty(),
                 coverTag = initTag?.artworkTag,
+                isLocal = initTag?.isLocal ?: false,
             )
 
             onDispose { c.removeListener(listener) }

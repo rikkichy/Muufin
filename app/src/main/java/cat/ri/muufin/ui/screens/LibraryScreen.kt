@@ -1,6 +1,5 @@
 package cat.ri.muufin.ui.screens
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,22 +22,18 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import cat.ri.muufin.core.AuthManager
+import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
 import cat.ri.muufin.core.JellyfinUrls
 import cat.ri.muufin.core.PlayerManager
 import cat.ri.muufin.core.SettingsManager
+import cat.ri.muufin.model.dto.CachedPlaylist
+import cat.ri.muufin.model.dto.DownloadCatalog
 import cat.ri.muufin.model.dto.BaseItemDto
 import cat.ri.muufin.model.primaryImageTag
 import cat.ri.muufin.model.subtitle
@@ -115,29 +110,6 @@ fun LibraryScreen(
     }
 }
 
-@Composable
-private fun rememberPullToSearchConnection(
-    showSearch: Boolean,
-    onTrigger: () -> Unit,
-): NestedScrollConnection {
-    val showState = rememberUpdatedState(showSearch)
-    val triggerState = rememberUpdatedState(onTrigger)
-    return remember {
-        object : NestedScrollConnection {
-            override fun onPostScroll(
-                consumed: Offset,
-                available: Offset,
-                source: NestedScrollSource,
-            ): Offset {
-                if (available.y > 0f && source == NestedScrollSource.UserInput && !showState.value) {
-                    triggerState.value()
-                }
-                return Offset.Zero
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun AlbumsTab(
@@ -150,24 +122,50 @@ private fun AlbumsTab(
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
 
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
+    val downloadCatalog by DownloadManager.catalog.collectAsState()
+
     val albums = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
         isLoading = true
-        val next = runCatching { repo.getAlbums(startIndex = albums.size, limit = 40) }.getOrNull().orEmpty()
-        if (next.isEmpty()) endReached = true else albums.addAll(next)
+        if (offlineMode) {
+            if (albums.isEmpty()) albums.addAll(offlineAlbums(downloadCatalog))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getAlbums(startIndex = albums.size, limit = 40) }
+            val next = result.getOrNull().orEmpty()
+            if (result.isFailure && albums.isEmpty()) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            }
+            if (next.isEmpty() && result.isSuccess) endReached = true else albums.addAll(next)
+        }
         isLoading = false
     }
 
     suspend fun refresh() {
         isRefreshing = true
-        endReached = false
-        albums.clear()
-        loadMore()
+        error = null
+        if (offlineMode) {
+            albums.clear()
+            albums.addAll(offlineAlbums(downloadCatalog))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getAlbums(startIndex = 0, limit = 40) }
+            val fresh = result.getOrNull().orEmpty()
+            if (result.isFailure) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            } else {
+                albums.clear()
+                albums.addAll(fresh)
+                endReached = fresh.isEmpty()
+            }
+        }
         isRefreshing = false
     }
 
@@ -187,15 +185,6 @@ private fun AlbumsTab(
 	}
 
     var query by remember { mutableStateOf("") }
-    var showSearch by remember { mutableStateOf(false) }
-    var searchKey by remember { mutableIntStateOf(0) }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val pullToSearch = rememberPullToSearchConnection(showSearch) {
-        haptics.tap()
-        searchKey++
-        showSearch = true
-    }
 
     val displayAlbums by remember {
         derivedStateOf {
@@ -211,38 +200,21 @@ private fun AlbumsTab(
         onRefresh = { scope.launch { refresh() } },
         modifier = Modifier.fillMaxSize(),
     ) {
-    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier.animateContentSize(
-                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                ),
-            ) {
-                if (showSearch) {
-                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .focusRequester(focusRequester),
-                        placeholder = { Text("Search albums...") },
-                        shape = RoundedCornerShape(20.dp),
-                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                query = ""
-                                showSearch = false
-                                keyboardController?.hide()
-                            }) {
-                                Icon(Icons.Rounded.Close, null)
-                            }
-                        },
-                        singleLine = true,
-                    )
-                }
-            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Search albums...") },
+                shape = RoundedCornerShape(20.dp),
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, null) } }
+                } else null,
+                singleLine = true,
+            )
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (layout == 0) {
@@ -318,14 +290,13 @@ private fun AlbumsTab(
 
                 if (!isLoading && albums.isEmpty()) {
                     EmptyState(
-                        title = "No albums",
-                        subtitle = "Nothing to show yet.",
+                        title = if (offlineMode) "No downloaded albums" else if (error != null) "Could not load albums" else "No albums",
+                        subtitle = if (offlineMode) "Download tracks to see albums offline." else error ?: "Nothing to show yet.",
                         onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
-    }
     }
 }
 
@@ -339,24 +310,50 @@ private fun ArtistsTab(
     val haptics = rememberMuufinHaptics()
     val listState = rememberLazyListState()
 
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
+    val downloadCatalog by DownloadManager.catalog.collectAsState()
+
     val artists = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
         isLoading = true
-        val next = runCatching { repo.getArtists(startIndex = artists.size, limit = 40) }.getOrNull().orEmpty()
-        if (next.isEmpty()) endReached = true else artists.addAll(next)
+        if (offlineMode) {
+            if (artists.isEmpty()) artists.addAll(offlineArtists(downloadCatalog))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getArtists(startIndex = artists.size, limit = 40) }
+            val next = result.getOrNull().orEmpty()
+            if (result.isFailure && artists.isEmpty()) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            }
+            if (next.isEmpty() && result.isSuccess) endReached = true else artists.addAll(next)
+        }
         isLoading = false
     }
 
     suspend fun refresh() {
         isRefreshing = true
-        endReached = false
-        artists.clear()
-        loadMore()
+        error = null
+        if (offlineMode) {
+            artists.clear()
+            artists.addAll(offlineArtists(downloadCatalog))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getArtists(startIndex = 0, limit = 40) }
+            val fresh = result.getOrNull().orEmpty()
+            if (result.isFailure) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            } else {
+                artists.clear()
+                artists.addAll(fresh)
+                endReached = fresh.isEmpty()
+            }
+        }
         isRefreshing = false
     }
 
@@ -370,15 +367,6 @@ private fun ArtistsTab(
 	}
 
     var query by remember { mutableStateOf("") }
-    var showSearch by remember { mutableStateOf(false) }
-    var searchKey by remember { mutableIntStateOf(0) }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val pullToSearch = rememberPullToSearchConnection(showSearch) {
-        haptics.tap()
-        searchKey++
-        showSearch = true
-    }
 
     val displayArtists by remember {
         derivedStateOf {
@@ -394,38 +382,21 @@ private fun ArtistsTab(
         onRefresh = { scope.launch { refresh() } },
         modifier = Modifier.fillMaxSize(),
     ) {
-    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier.animateContentSize(
-                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                ),
-            ) {
-                if (showSearch) {
-                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .focusRequester(focusRequester),
-                        placeholder = { Text("Search artists...") },
-                        shape = RoundedCornerShape(20.dp),
-                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                query = ""
-                                showSearch = false
-                                keyboardController?.hide()
-                            }) {
-                                Icon(Icons.Rounded.Close, null)
-                            }
-                        },
-                        singleLine = true,
-                    )
-                }
-            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Search artists...") },
+                shape = RoundedCornerShape(20.dp),
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, null) } }
+                } else null,
+                singleLine = true,
+            )
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 LazyColumn(
@@ -468,14 +439,13 @@ private fun ArtistsTab(
 
                 if (!isLoading && artists.isEmpty()) {
                     EmptyState(
-                        title = "No artists",
-                        subtitle = "Nothing to show yet.",
+                        title = if (offlineMode) "No downloaded artists" else if (error != null) "Could not load artists" else "No artists",
+                        subtitle = if (offlineMode) "Download tracks to see artists offline." else error ?: "Nothing to show yet.",
                         onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
-    }
     }
 }
 
@@ -492,24 +462,51 @@ private fun PlaylistsTab(
     val gridState = rememberLazyGridState()
     val listState = rememberLazyListState()
 
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
+    val cachedPl by DownloadManager.cachedPlaylists.collectAsState()
+    val downloadedIds by DownloadManager.downloadedIds.collectAsState()
+
     val playlists = remember { mutableStateListOf<BaseItemDto>() }
     var isLoading by remember { mutableStateOf(false) }
     var endReached by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     suspend fun loadMore() {
         if (isLoading || endReached) return
         isLoading = true
-        val next = runCatching { repo.getPlaylists(startIndex = playlists.size, limit = 40) }.getOrNull().orEmpty()
-        if (next.isEmpty()) endReached = true else playlists.addAll(next)
+        if (offlineMode) {
+            if (playlists.isEmpty()) playlists.addAll(offlinePlaylists(cachedPl, downloadedIds))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getPlaylists(startIndex = playlists.size, limit = 40) }
+            val next = result.getOrNull().orEmpty()
+            if (result.isFailure && playlists.isEmpty()) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            }
+            if (next.isEmpty() && result.isSuccess) endReached = true else playlists.addAll(next)
+        }
         isLoading = false
     }
 
     suspend fun refresh() {
         isRefreshing = true
-        endReached = false
-        playlists.clear()
-        loadMore()
+        error = null
+        if (offlineMode) {
+            playlists.clear()
+            playlists.addAll(offlinePlaylists(cachedPl, downloadedIds))
+            endReached = true
+        } else {
+            val result = runCatching { repo.getPlaylists(startIndex = 0, limit = 40) }
+            val fresh = result.getOrNull().orEmpty()
+            if (result.isFailure) {
+                error = friendlyError(result.exceptionOrNull()!!)
+            } else {
+                playlists.clear()
+                playlists.addAll(fresh)
+                endReached = fresh.isEmpty()
+            }
+        }
         isRefreshing = false
     }
 
@@ -527,15 +524,6 @@ private fun PlaylistsTab(
 	}
 
     var query by remember { mutableStateOf("") }
-    var showSearch by remember { mutableStateOf(false) }
-    var searchKey by remember { mutableIntStateOf(0) }
-    val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val pullToSearch = rememberPullToSearchConnection(showSearch) {
-        haptics.tap()
-        searchKey++
-        showSearch = true
-    }
 
     val displayPlaylists by remember {
         derivedStateOf {
@@ -551,38 +539,21 @@ private fun PlaylistsTab(
         onRefresh = { scope.launch { refresh() } },
         modifier = Modifier.fillMaxSize(),
     ) {
-    Box(modifier = Modifier.fillMaxSize().nestedScroll(pullToSearch)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier.animateContentSize(
-                    animationSpec = MaterialTheme.motionScheme.fastSpatialSpec(),
-                ),
-            ) {
-                if (showSearch) {
-                    LaunchedEffect(searchKey) { focusRequester.requestFocus() }
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .focusRequester(focusRequester),
-                        placeholder = { Text("Search playlists...") },
-                        shape = RoundedCornerShape(20.dp),
-                        leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                query = ""
-                                showSearch = false
-                                keyboardController?.hide()
-                            }) {
-                                Icon(Icons.Rounded.Close, null)
-                            }
-                        },
-                        singleLine = true,
-                    )
-                }
-            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Search playlists...") },
+                shape = RoundedCornerShape(20.dp),
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, null) } }
+                } else null,
+                singleLine = true,
+            )
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (layout == 0) {
@@ -660,14 +631,13 @@ private fun PlaylistsTab(
 
                 if (!isLoading && playlists.isEmpty()) {
                     EmptyState(
-                        title = "No playlists",
-                        subtitle = "Nothing to show yet.",
+                        title = if (offlineMode) "No playlists" else if (error != null) "Could not load playlists" else "No playlists",
+                        subtitle = if (offlineMode) "Download at least one playlist to see something." else error ?: "Nothing to show yet.",
                         onRefresh = { scope.launch { refresh() } },
                     )
                 }
             }
         }
-    }
     }
 }
 
@@ -702,11 +672,82 @@ private fun EmptyState(
     }
 }
 
-private fun BaseItemDto.artworkModel(maxWidth: Int = 320): String? {
+internal fun friendlyError(t: Throwable): String = when (t) {
+    is java.net.UnknownHostException -> "Server not reachable. Check your connection."
+    is java.net.ConnectException -> "Could not connect to server."
+    is java.net.SocketTimeoutException -> "Connection timed out."
+    is javax.net.ssl.SSLException -> "Secure connection failed."
+    is java.io.IOException -> "Network error. Check your connection."
+    else -> t.message ?: "Unknown error."
+}
+
+private fun BaseItemDto.artworkModel(maxWidth: Int = 320): Any? {
+    if (SettingsManager.offlineMode.value) {
+        val artDir = DownloadManager.getArtworkDir()
+        if (type == "Playlist") {
+            val file = java.io.File(artDir, "${id}_playlist.jpg")
+            if (file.exists()) return android.net.Uri.fromFile(file)
+        }
+        val catalog = DownloadManager.catalog.value
+        val track = catalog.tracks.firstOrNull { it.albumId == id }
+        if (track != null) {
+            val file = java.io.File(artDir, "${track.id}.jpg")
+            if (file.exists()) return android.net.Uri.fromFile(file)
+        }
+        return null
+    }
     val s = AuthManager.state.value
     if (s.baseUrl.isBlank()) return null
     val tag = primaryImageTag()
     return JellyfinUrls.itemImage(state = s, itemId = id, tag = tag, maxWidth = maxWidth)
+}
+
+private fun offlineAlbums(catalog: DownloadCatalog): List<BaseItemDto> {
+    return catalog.tracks
+        .filter { !it.albumId.isNullOrBlank() }
+        .groupBy { it.albumId!! }
+        .map { (albumId, tracks) ->
+            val rep = tracks.first()
+            BaseItemDto(
+                id = albumId,
+                name = rep.album ?: "Unknown Album",
+                type = "MusicAlbum",
+                artists = rep.artists,
+                imageTags = rep.imageTags,
+            )
+        }
+        .sortedBy { it.name.lowercase() }
+}
+
+private fun offlineArtists(catalog: DownloadCatalog): List<BaseItemDto> {
+    return catalog.tracks
+        .flatMap { it.artists }
+        .distinct()
+        .map { name ->
+            BaseItemDto(
+                id = name,
+                name = name,
+                type = "MusicArtist",
+            )
+        }
+        .sortedBy { it.name.lowercase() }
+}
+
+private fun offlinePlaylists(
+    cached: List<CachedPlaylist>,
+    downloadedIds: Set<String>,
+): List<BaseItemDto> {
+    return cached
+        .filter { pl -> pl.trackIds.any { it in downloadedIds } }
+        .map { pl ->
+            BaseItemDto(
+                id = pl.id,
+                name = pl.name,
+                type = "Playlist",
+                imageTags = pl.imageTags,
+            )
+        }
+        .sortedBy { it.name.lowercase() }
 }
 
 private fun shouldLoadMoreGrid(state: LazyGridState): Boolean {

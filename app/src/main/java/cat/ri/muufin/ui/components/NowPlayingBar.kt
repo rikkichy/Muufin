@@ -14,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
@@ -67,14 +68,29 @@ fun NowPlayingBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            AsyncImage(
-                model = state.artworkUri,
-                contentDescription = null,
+            val coverModel = if (state.isLocal) state.artworkUri ?: state.artworkBytes else state.artworkBytes ?: state.artworkUri
+            Box(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                if (coverModel != null) {
+                    AsyncImage(
+                        model = coverModel,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Icon(
+                        Icons.Rounded.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+            }
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(

@@ -42,7 +42,7 @@ fun TrackRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isPlaying: Boolean = false,
-    leadingImageUrl: String? = null,
+    leadingImageUrl: Any? = null,
     leadingImageContentDescription: String? = null,
     leadingImageSize: Dp = 40.dp,
     downloadState: TrackDownloadState = TrackDownloadState.NONE,

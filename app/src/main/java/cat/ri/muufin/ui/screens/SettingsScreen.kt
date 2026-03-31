@@ -91,7 +91,8 @@ fun SettingsScreen(
 
     var userName by remember { mutableStateOf<String?>(null) }
     var serverInfo by remember { mutableStateOf<PublicSystemInfoDto?>(null) }
-    LaunchedEffect(auth.userId, auth.accessToken, auth.baseUrl) {
+    LaunchedEffect(auth.userId, auth.accessToken, auth.baseUrl, offlineMode) {
+        if (offlineMode) return@LaunchedEffect
         userName = runCatching { repo.getCurrentUser().name }.getOrNull()
         serverInfo = runCatching { repo.getPublicSystemInfo() }.getOrNull()
     }

@@ -113,6 +113,7 @@ fun PlayerScreen(
     
     
     val auth by AuthManager.state.collectAsState()
+    val offlineMode by cat.ri.muufin.core.SettingsManager.offlineMode.collectAsState()
     val config = LocalConfiguration.current
     val density = LocalDensity.current
 
@@ -126,8 +127,8 @@ fun PlayerScreen(
         with(density) { coverDp.toPx() }.roundToInt().coerceIn(480, 1080)
     }
 
-    val hiResArtworkUri = remember(auth.baseUrl, coverItemId, coverTag, coverMaxWidth) {
-        if (auth.baseUrl.isBlank() || coverItemId.isNullOrBlank()) {
+    val hiResArtworkUri = remember(auth.baseUrl, coverItemId, coverTag, coverMaxWidth, offlineMode) {
+        if (offlineMode || auth.baseUrl.isBlank() || coverItemId.isNullOrBlank()) {
             null
         } else {
             android.net.Uri.parse(
@@ -142,14 +143,12 @@ fun PlayerScreen(
         }
     }
 
-    val artworkForUi = hiResArtworkUri ?: ui.artworkUri
-
-    val blurArtworkUri = remember(auth.baseUrl, coverItemId, coverTag) {
-        if (auth.baseUrl.isBlank() || coverItemId.isNullOrBlank()) null
-        else android.net.Uri.parse(
-            JellyfinUrls.itemImage(state = auth, itemId = coverItemId, tag = coverTag, maxWidth = 64, quality = 40)
-        )
+    val artworkForUi: Any? = if (ui.isLocal) {
+        ui.artworkUri ?: ui.artworkBytes
+    } else {
+        hiResArtworkUri ?: ui.artworkUri
     }
+
 
 
     val artTransitionSpec = spring<Float>(
@@ -167,8 +166,8 @@ fun PlayerScreen(
     var showAudioInfo by remember { mutableStateOf(false) }
     var audioMediaStream by remember { mutableStateOf<MediaStreamDto?>(null) }
 
-    LaunchedEffect(trackId, auth.baseUrl, auth.accessToken) {
-        if (trackId.isNullOrBlank() || auth.baseUrl.isBlank()) {
+    LaunchedEffect(trackId, auth.baseUrl, auth.accessToken, offlineMode) {
+        if (offlineMode || trackId.isNullOrBlank() || auth.baseUrl.isBlank()) {
             lyrics = null
             lyricsLoading = false
             audioMediaStream = null
@@ -215,34 +214,12 @@ fun PlayerScreen(
 
     val qualityText = audioMediaStream?.codec?.uppercase()
 
-    
-    val overlayColor = MaterialTheme.colorScheme.surface
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface),
     ) {
-        
-        AsyncImage(
-            model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                .data(blurArtworkUri ?: artworkForUi)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .blur(60.dp),
-            contentScale = ContentScale.Crop,
-            alpha = 0.28f,
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(overlayColor),
-        )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -651,7 +628,7 @@ private fun RepeatActionButton(controller: Player, mode: Int) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CoverPanel(
-    artworkForUi: android.net.Uri?,
+    artworkForUi: Any?,
     artTransitionSpec: androidx.compose.animation.core.FiniteAnimationSpec<Float>,
 ) {
     AnimatedContent(

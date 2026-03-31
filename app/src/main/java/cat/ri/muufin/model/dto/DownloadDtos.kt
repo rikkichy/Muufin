@@ -69,6 +69,31 @@ fun BaseItemDto.toDownloadTask(serverBaseUrl: String): DownloadTask {
     )
 }
 
+fun DownloadedTrack.toBaseItemDto(): BaseItemDto = BaseItemDto(
+    id = id,
+    name = name,
+    type = "Audio",
+    album = album,
+    albumId = albumId,
+    artists = artists,
+    runTimeTicks = runTimeTicks,
+    imageTags = imageTags,
+)
+
+@Serializable
+data class CachedPlaylist(
+    val id: String,
+    val name: String,
+    val imageTags: Map<String, String> = emptyMap(),
+    val trackIds: List<String> = emptyList(),
+)
+
+@Serializable
+data class CachedPlaylistStore(
+    val version: Int = 1,
+    val playlists: List<CachedPlaylist> = emptyList(),
+)
+
 @Serializable
 data class PlaybackInfoResponse(
     @SerialName("MediaSources") val mediaSources: List<MediaSourceInfo> = emptyList(),

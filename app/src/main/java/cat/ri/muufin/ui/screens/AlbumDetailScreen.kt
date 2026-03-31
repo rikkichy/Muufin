@@ -10,7 +10,9 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import cat.ri.muufin.core.PlayerManager
 import cat.ri.muufin.core.SettingsManager
 import cat.ri.muufin.model.dto.BaseItemDto
 import cat.ri.muufin.model.dto.DownloadTaskStatus
+import cat.ri.muufin.model.dto.toBaseItemDto
 import cat.ri.muufin.model.durationLabel
 import cat.ri.muufin.model.primaryImageTag
 import cat.ri.muufin.ui.components.PlayerUiState
@@ -51,6 +54,7 @@ fun AlbumDetailScreen(
     val haptics = rememberMuufinHaptics()
     val scope = rememberCoroutineScope()
 
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
     val cachedAlbum = remember { repo.getCachedItem(albumId) }
     val cachedTracks = remember { repo.getCachedAlbumTracks(albumId) }
     var album by remember { mutableStateOf(cachedAlbum) }
@@ -58,19 +62,44 @@ fun AlbumDetailScreen(
     var isLoading by remember { mutableStateOf(cachedTracks == null) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(albumId) {
+    LaunchedEffect(albumId, offlineMode) {
+        if (offlineMode) {
+            // Offline: build tracks from download catalog
+            val catalog = DownloadManager.catalog.value
+            val offlineTracks = catalog.tracks
+                .filter { it.albumId == albumId }
+                .map { it.toBaseItemDto() }
+            if (offlineTracks.isNotEmpty()) {
+                tracks = offlineTracks
+                if (album == null) {
+                    album = BaseItemDto(
+                        id = albumId,
+                        name = offlineTracks.first().album ?: "Album",
+                        type = "MusicAlbum",
+                        artists = offlineTracks.first().artists,
+                        imageTags = offlineTracks.first().imageTags,
+                    )
+                }
+            }
+            isLoading = false
+            return@LaunchedEffect
+        }
         val hasCached = cachedTracks != null
         if (!hasCached) isLoading = true
         error = null
         coroutineScope {
-            val aDeferred = async { runCatching { repo.getItem(albumId) }.getOrNull() }
-            val tDeferred = async { runCatching { repo.getAlbumTracks(albumId) }.getOrNull() }
-            val a = aDeferred.await()
-            val t = tDeferred.await()
+            val aResult = async { runCatching { repo.getItem(albumId) } }
+            val tResult = async { runCatching { repo.getAlbumTracks(albumId) } }
+            val aRes = aResult.await()
+            val tRes = tResult.await()
+            val a = aRes.getOrNull()
+            val t = tRes.getOrNull()
             if (a != null) album = a
             if (!t.isNullOrEmpty()) tracks = t
             isLoading = false
-            if (a == null && !hasCached) error = "Failed to load album"
+            if (a == null && !hasCached) {
+                error = aRes.exceptionOrNull()?.let { friendlyError(it) } ?: "Failed to load album"
+            }
         }
     }
 
@@ -112,11 +141,47 @@ fun AlbumDetailScreen(
             }
 
             if (error != null) {
-                Text(
-                    text = error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(16.dp),
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        Icons.Rounded.WarningAmber,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("Oh..", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        error!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    FilledTonalButton(onClick = {
+                        scope.launch {
+                            isLoading = true
+                            error = null
+                            val aRes = runCatching { repo.getItem(albumId) }
+                            val tRes = runCatching { repo.getAlbumTracks(albumId) }
+                            val a = aRes.getOrNull()
+                            val t = tRes.getOrNull()
+                            if (a != null) album = a
+                            if (!t.isNullOrEmpty()) tracks = t
+                            isLoading = false
+                            if (a == null) error = aRes.exceptionOrNull()?.let { friendlyError(it) } ?: "Failed to load album"
+                        }
+                    }) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Try again")
+                    }
+                }
                 return@Box
             }
 
@@ -152,9 +217,7 @@ fun AlbumDetailScreen(
                                 }
                             }
                         },
-                        onDownload = {
-                            if (!allDownloaded) DownloadManager.enqueueAll(tracks)
-                        },
+                        onDownload = if (!offlineMode) { { if (!allDownloaded) DownloadManager.enqueueAll(tracks) } } else null,
                         allDownloaded = allDownloaded,
                         anyDownloading = anyDownloading,
                     )
@@ -178,8 +241,8 @@ fun AlbumDetailScreen(
                                     onOpenPlayer()
                             }
                         },
-                        downloadState = dlState,
-                        onDownloadClick = if (dlState == TrackDownloadState.NONE) {
+                        downloadState = if (offlineMode) TrackDownloadState.NONE else dlState,
+                        onDownloadClick = if (!offlineMode && dlState == TrackDownloadState.NONE) {
                             { DownloadManager.enqueue(item) }
                         } else null,
                         enabled = !offlineMode || item.id in downloadedIds,
@@ -196,15 +259,25 @@ private fun AlbumHeader(
     trackCount: Int,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
-    onDownload: () -> Unit = {},
+    onDownload: (() -> Unit)? = null,
     allDownloaded: Boolean = false,
     anyDownloading: Boolean = false,
 ) {
     val haptics = rememberMuufinHaptics()
     val s = AuthManager.state.value
-    val art = remember(album?.id, album?.primaryImageTag(), s.baseUrl) {
-        if (album == null || s.baseUrl.isBlank()) null
-        else JellyfinUrls.itemImage(state = s, itemId = album.id, tag = album.primaryImageTag(), maxWidth = 768)
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
+    val art: Any? = remember(album?.id, album?.primaryImageTag(), s.baseUrl, offlineMode) {
+        if (offlineMode) {
+            val artDir = DownloadManager.getArtworkDir()
+            val catalog = DownloadManager.catalog.value
+            catalog.tracks.firstOrNull { it.albumId == album?.id }?.let { track ->
+                val file = java.io.File(artDir, "${track.id}.jpg")
+                if (file.exists()) android.net.Uri.fromFile(file) else null
+            }
+        } else {
+            if (album == null || s.baseUrl.isBlank()) null
+            else JellyfinUrls.itemImage(state = s, itemId = album.id, tag = album.primaryImageTag(), maxWidth = 768)
+        }
     }
 
     Column(
@@ -268,29 +341,31 @@ private fun AlbumHeader(
                 }
             }
         }
-        FilledTonalButton(
-            onClick = {
-                haptics.tap()
-                onDownload()
-            },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Icon(
-                imageVector = when {
-                    allDownloaded -> Icons.Rounded.DownloadDone
-                    anyDownloading -> Icons.Rounded.Downloading
-                    else -> Icons.Rounded.Download
+        if (onDownload != null) {
+            FilledTonalButton(
+                onClick = {
+                    haptics.tap()
+                    onDownload()
                 },
-                contentDescription = null,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                when {
-                    allDownloaded -> "Downloaded"
-                    anyDownloading -> "Downloading..."
-                    else -> "Download"
-                }
-            )
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(
+                    imageVector = when {
+                        allDownloaded -> Icons.Rounded.DownloadDone
+                        anyDownloading -> Icons.Rounded.Downloading
+                        else -> Icons.Rounded.Download
+                    },
+                    contentDescription = null,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    when {
+                        allDownloaded -> "Downloaded"
+                        anyDownloading -> "Downloading..."
+                        else -> "Download"
+                    }
+                )
+            }
         }
         HorizontalDivider()
     }

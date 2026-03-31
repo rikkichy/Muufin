@@ -45,6 +45,7 @@ import androidx.navigation.navArgument
 import cat.ri.muufin.core.AuthManager
 import cat.ri.muufin.core.DownloadManager
 import cat.ri.muufin.core.JellyfinRepository
+import cat.ri.muufin.core.SettingsManager
 import cat.ri.muufin.core.SyncManager
 import cat.ri.muufin.ui.components.NowPlayingBar
 import cat.ri.muufin.ui.components.rememberMediaController
@@ -75,30 +76,33 @@ object Routes {
 fun MuufinApp() {
     val haptics = rememberMuufinHaptics()
     val auth by AuthManager.state.collectAsState()
+    val offlineMode by SettingsManager.offlineMode.collectAsState()
     val nav = rememberNavController()
     val repo = remember { JellyfinRepository() }
 
-    
-    
-    
-    
-    
+
+
+
+
+
     val controller by rememberMediaController(enabled = auth.isSignedIn)
     val playerUi by rememberPlayerUiState(controller)
 
 
     var showPlayer by rememberSaveable { mutableStateOf(false) }
 
-    
-    LaunchedEffect(auth.isSignedIn) {
+
+    LaunchedEffect(auth.isSignedIn, offlineMode) {
         if (!auth.isSignedIn) {
             showPlayer = false
             SyncManager.stopPeriodicSync()
         }
-        if (auth.isSignedIn) {
+        if (auth.isSignedIn && !offlineMode) {
             DownloadManager.resumePendingDownloads()
             SyncManager.startPeriodicSync()
             SyncManager.validateDownloads()
+        } else if (offlineMode) {
+            SyncManager.stopPeriodicSync()
         }
     }
 

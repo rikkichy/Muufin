@@ -121,20 +121,12 @@ object PlayerManager {
         // Check for downloaded local file first
         val localUri = DownloadManager.getLocalUri(id)
         if (localUri != null) {
-            // Use local artwork if available, else remote
+            // Set local artwork file as artworkUri for immediate display.
+            // ExoPlayer will also extract embedded art → artworkBytes takes priority in UI.
             val localArtwork = java.io.File(DownloadManager.getArtworkDir(), "$id.jpg")
             val artworkUri = if (localArtwork.exists()) {
                 android.net.Uri.fromFile(localArtwork)
-            } else {
-                runCatching {
-                    JellyfinUrls.itemImage(state = auth, itemId = artworkItemId, tag = primaryTag, maxWidth = 480)
-                }.getOrNull()
-                    ?.let { url ->
-                        val sep = if (url.contains("?")) "&" else "?"
-                        url + sep + "ApiKey=" + URLEncoder.encode(auth.accessToken, StandardCharsets.UTF_8.name())
-                    }
-                    ?.let { android.net.Uri.parse(it) }
-            }
+            } else null
 
             val meta = MediaMetadata.Builder()
                 .setTitle(name)

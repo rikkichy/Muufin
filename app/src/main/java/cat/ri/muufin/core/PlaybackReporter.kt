@@ -106,7 +106,7 @@ class PlaybackReporter(
         progressJob = scope.launch(Dispatchers.Main.immediate) {
             while (isActive) {
                 delay(PROGRESS_INTERVAL_MS)
-                if (!enabled) continue
+                if (!enabled || SettingsManager.offlineMode.value) continue
                 if (!player.isPlaying) continue
                 reportProgressForCurrent(isPaused = false)
             }
@@ -119,7 +119,7 @@ class PlaybackReporter(
     }
 
     private fun reportStartForCurrent() {
-        if (!enabled) return
+        if (!enabled || SettingsManager.offlineMode.value) return
 
         val itemId = player.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
 
@@ -155,7 +155,7 @@ class PlaybackReporter(
     }
 
     private fun reportProgressForCurrent(isPaused: Boolean) {
-        if (!enabled) return
+        if (!enabled || SettingsManager.offlineMode.value) return
         if (!startedForItem) return
 
         val itemId = player.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
@@ -182,7 +182,7 @@ class PlaybackReporter(
     }
 
     private fun reportStopForCurrent(nextMediaType: String?) {
-        if (!enabled) return
+        if (!enabled || SettingsManager.offlineMode.value) return
         if (!startedForItem || stoppedForItem) return
 
         val itemId = currentItemId ?: player.currentMediaItem?.mediaId?.takeIf { it.isNotBlank() } ?: return
