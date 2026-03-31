@@ -76,7 +76,10 @@ import androidx.media3.common.C
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
-import coil3.compose.AsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.material.icons.rounded.MusicNote
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import cat.ri.muufin.core.AuthManager
@@ -639,19 +642,45 @@ private fun CoverPanel(
         },
         label = "playerCoverArt",
     ) { artwork ->
-        AsyncImage(
-            model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                .data(artwork)
-                .crossfade(true)
-                .build(),
-            contentDescription = null,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
-            contentScale = ContentScale.Crop,
-        )
+            contentAlignment = Alignment.Center,
+        ) {
+            if (artwork != null) {
+                val painter = rememberAsyncImagePainter(
+                    model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(artwork)
+                        .crossfade(true)
+                        .build(),
+                )
+                val painterState by painter.state.collectAsState()
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+                if (painterState is AsyncImagePainter.State.Error) {
+                    Icon(
+                        Icons.Rounded.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(64.dp),
+                    )
+                }
+            } else {
+                Icon(
+                    Icons.Rounded.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(64.dp),
+                )
+            }
+        }
     }
 }
 

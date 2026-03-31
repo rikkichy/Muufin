@@ -19,13 +19,16 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.media3.session.MediaController
-import coil3.compose.AsyncImage
+import androidx.compose.foundation.Image
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import cat.ri.muufin.ui.util.rememberMuufinHaptics
 
 @Composable
@@ -77,11 +80,21 @@ fun NowPlayingBar(
                 contentAlignment = Alignment.Center,
             ) {
                 if (coverModel != null) {
-                    AsyncImage(
-                        model = coverModel,
+                    val painter = rememberAsyncImagePainter(model = coverModel)
+                    val painterState by painter.state.collectAsState()
+                    Image(
+                        painter = painter,
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
                     )
+                    if (painterState is AsyncImagePainter.State.Error) {
+                        Icon(
+                            Icons.Rounded.MusicNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    }
                 } else {
                     Icon(
                         Icons.Rounded.MusicNote,

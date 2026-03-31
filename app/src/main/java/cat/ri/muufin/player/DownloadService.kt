@@ -300,7 +300,7 @@ class DownloadService : Service() {
                         tmpFile.outputStream().use { output -> input.copyTo(output) }
                     }
                     // Validate: minimum size and JPEG magic bytes
-                    if (tmpFile.length() < 100 || !isValidJpeg(tmpFile)) {
+                    if (tmpFile.length() < 100 || !isValidImage(tmpFile)) {
                         tmpFile.delete()
                         Log.w(TAG, "Artwork for ${task.trackId} failed validation, discarded")
                         return@runCatching
@@ -314,13 +314,24 @@ class DownloadService : Service() {
         }.onFailure { Log.w(TAG, "Artwork download failed for ${task.trackId}", it) }
     }
 
-    private fun isValidJpeg(file: File): Boolean {
+    private fun isValidImage(file: File): Boolean {
         return runCatching {
             file.inputStream().use { stream ->
-                val header = ByteArray(3)
-                if (stream.read(header) < 3) return@runCatching false
-                // JPEG magic: FF D8 FF
-                header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() && header[2] == 0xFF.toByte()
+                val header = ByteArray(12)
+                val read = stream.read(header)
+                if (read < 3) return@runCatching false
+                // JPEG: FF D8 FF
+                if (header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte()
+                    && header[2] == 0xFF.toByte()) return@runCatching true
+                // PNG: 89 50 4E 47
+                if (read >= 4 && header[0] == 0x89.toByte() && header[1] == 0x50.toByte()
+                    && header[2] == 0x4E.toByte() && header[3] == 0x47.toByte()) return@runCatching true
+                // WebP: RIFF....WEBP
+                if (read >= 12 && header[0] == 0x52.toByte() && header[1] == 0x49.toByte()
+                    && header[2] == 0x46.toByte() && header[3] == 0x46.toByte()
+                    && header[8] == 0x57.toByte() && header[9] == 0x45.toByte()
+                    && header[10] == 0x42.toByte() && header[11] == 0x50.toByte()) return@runCatching true
+                false
             }
         }.getOrDefault(false)
     }

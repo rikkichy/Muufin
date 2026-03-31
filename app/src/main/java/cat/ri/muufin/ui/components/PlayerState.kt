@@ -70,7 +70,8 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
                         title = mediaMetadata.title?.toString().orEmpty(),
                         artist = mediaMetadata.artist?.toString().orEmpty(),
                         artworkUri = mediaMetadata.artworkUri ?: state.value.artworkUri,
-                        artworkBytes = mediaMetadata.artworkData ?: state.value.artworkBytes,
+                        artworkBytes = mediaMetadata.artworkData?.takeIf { it.isValidImageBytes() }
+                            ?: state.value.artworkBytes,
                     )
                 }
 
@@ -120,4 +121,19 @@ fun rememberPlayerUiState(controller: MediaController?): State<PlayerUiState> {
     }
 
     return state
+}
+
+private fun ByteArray.isValidImageBytes(): Boolean {
+    if (size < 100) return false
+    // JPEG: FF D8 FF
+    if (this[0] == 0xFF.toByte() && this[1] == 0xD8.toByte() && this[2] == 0xFF.toByte()) return true
+    // PNG: 89 50 4E 47
+    if (size >= 4 && this[0] == 0x89.toByte() && this[1] == 0x50.toByte()
+        && this[2] == 0x4E.toByte() && this[3] == 0x47.toByte()) return true
+    // WebP: RIFF....WEBP
+    if (size >= 12 && this[0] == 0x52.toByte() && this[1] == 0x49.toByte()
+        && this[2] == 0x46.toByte() && this[3] == 0x46.toByte()
+        && this[8] == 0x57.toByte() && this[9] == 0x45.toByte()
+        && this[10] == 0x42.toByte() && this[11] == 0x50.toByte()) return true
+    return false
 }

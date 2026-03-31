@@ -84,26 +84,24 @@ fun PlaylistDetailScreen(
 
     val listState = rememberLazyListState()
     val indexById = remember(tracks) { tracks.withIndex().associate { (i, t) -> t.id to i } }
-    val displayTracks by remember {
-        derivedStateOf {
-            if (query.isBlank()) tracks else tracks.filter {
-                it.name.contains(query, ignoreCase = true) ||
-                    it.artists.any { a -> a.contains(query, ignoreCase = true) }
-            }
+    val displayTracks = remember(query, tracks) {
+        if (query.isBlank()) tracks else tracks.filter {
+            it.name.contains(query, ignoreCase = true) ||
+                it.artists.any { a -> a.contains(query, ignoreCase = true) }
         }
     }
 
-    // Index of the playing track in displayTracks (+1 for header item)
+    // FAB: scroll to playing track (only if queue is from this playlist)
     val mediaId = playerUi.mediaId
-    val playingDisplayIndex by remember {
-        derivedStateOf {
-            displayTracks.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 }?.let { it + 1 }
-        }
-    }
-    val playingIndexState = rememberUpdatedState(playingDisplayIndex)
+    val queueSourceId by PlayerManager.queueSourceId.collectAsState()
+    val isPlayingFromHere = queueSourceId == playlistId && mediaId.isNotBlank()
+    val playingDisplayIndex = if (isPlayingFromHere) {
+        displayTracks.indexOfFirst { it.id == mediaId }.takeIf { it >= 0 }?.let { it + 1 }
+    } else null
+    val playingIdxState = rememberUpdatedState(playingDisplayIndex)
     val showScrollToPlaying by remember {
         derivedStateOf {
-            val idx = playingIndexState.value ?: return@derivedStateOf false
+            val idx = playingIdxState.value ?: return@derivedStateOf false
             val visible = listState.layoutInfo.visibleItemsInfo
             visible.none { it.index == idx }
         }
@@ -343,7 +341,7 @@ fun PlaylistDetailScreen(
                             title = item.name,
                             subtitle = item.artists.joinToString().ifBlank { item.album.orEmpty() },
                             duration = item.durationLabel(),
-                            isPlaying = item.id == mediaId,
+                            isPlaying = isPlayingFromHere && item.id == mediaId,
                             leadingImageUrl = coverUrl,
                             onClick = {
                                 scope.launch {

@@ -59,7 +59,7 @@ object HttpClients {
         return imageRef.get() ?: buildClient(
             acceptHeader = "image/*",
             forPlayback = false,
-            forceCacheSeconds = 604_800, // 7 days — URL tag param handles invalidation
+            forceCacheSeconds = 86_400, // 1 day — URL tag param handles invalidation
             pool = mediaPool,
         ).also { imageRef.set(it) }
     }

@@ -483,7 +483,7 @@ object DownloadManager {
                             tmpFile.outputStream().use { output -> input.copyTo(output) }
                         }
                         // Validate JPEG
-                        if (tmpFile.length() < 100 || !isValidJpeg(tmpFile)) {
+                        if (tmpFile.length() < 100 || !isValidImage(tmpFile)) {
                             tmpFile.delete()
                             Log.w(TAG, "Playlist cover for ${playlist.id} failed validation")
                             return@runCatching
@@ -522,12 +522,21 @@ object DownloadManager {
         }.onFailure { Log.e(TAG, "Failed to persist playlists cache", it) }
     }
 
-    private fun isValidJpeg(file: File): Boolean {
+    private fun isValidImage(file: File): Boolean {
         return runCatching {
             file.inputStream().use { stream ->
-                val header = ByteArray(3)
-                if (stream.read(header) < 3) return@runCatching false
-                header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte() && header[2] == 0xFF.toByte()
+                val header = ByteArray(12)
+                val read = stream.read(header)
+                if (read < 3) return@runCatching false
+                if (header[0] == 0xFF.toByte() && header[1] == 0xD8.toByte()
+                    && header[2] == 0xFF.toByte()) return@runCatching true
+                if (read >= 4 && header[0] == 0x89.toByte() && header[1] == 0x50.toByte()
+                    && header[2] == 0x4E.toByte() && header[3] == 0x47.toByte()) return@runCatching true
+                if (read >= 12 && header[0] == 0x52.toByte() && header[1] == 0x49.toByte()
+                    && header[2] == 0x46.toByte() && header[3] == 0x46.toByte()
+                    && header[8] == 0x57.toByte() && header[9] == 0x45.toByte()
+                    && header[10] == 0x42.toByte() && header[11] == 0x50.toByte()) return@runCatching true
+                false
             }
         }.getOrDefault(false)
     }

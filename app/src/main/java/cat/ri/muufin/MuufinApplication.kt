@@ -74,25 +74,29 @@ class MuufinApplication : Application(), SingletonImageLoader.Factory {
     }
 
     override fun newImageLoader(context: Context): ImageLoader {
+        val memCache = MemoryCache.Builder()
+            .maxSizePercent(context, 0.20)
+            .strongReferencesEnabled(true)
+            .build()
+        val diskCacheInstance = DiskCache.Builder()
+            .directory(context.cacheDir.resolve("coil_cache"))
+            .maxSizeBytes(50L * 1024 * 1024)
+            .build()
         return ImageLoader.Builder(context)
             .components {
                 add(OkHttpNetworkFetcherFactory(callFactory = { HttpClients.imageOkHttp() }))
             }
-            .memoryCache {
-                MemoryCache.Builder()
-                    .maxSizePercent(context, 0.20) // 20% of available memory
-                    .strongReferencesEnabled(true)
-                    .build()
-            }
-            .diskCache {
-                DiskCache.Builder()
-                    .directory(context.cacheDir.resolve("coil_cache"))
-                    .maxSizeBytes(50L * 1024 * 1024) // 50 MB
-                    .build()
-            }
+            .memoryCache { memCache }
+            .diskCache { diskCacheInstance }
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .crossfade(false)
+            .eventListener(object : coil3.EventListener() {
+                override fun onError(request: ImageRequest, result: coil3.request.ErrorResult) {
+                    request.memoryCacheKey?.let { memCache.remove(MemoryCache.Key(it)) }
+                    request.diskCacheKey?.let { diskCacheInstance.remove(it) }
+                }
+            })
             .apply { if (BuildConfig.DEBUG) logger(DebugLogger()) }
             .build()
     }
