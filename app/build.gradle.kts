@@ -21,12 +21,12 @@ android {
     }
     signingConfigs {
         create("release") {
-            val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val ksPath = findProperty("ANDROID_KEYSTORE_PATH")?.toString() ?: System.getenv("ANDROID_KEYSTORE_PATH")
             if (!ksPath.isNullOrBlank()) {
                 storeFile = file(ksPath)
-                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
-                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+                storePassword = findProperty("ANDROID_KEYSTORE_PASSWORD")?.toString() ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = findProperty("ANDROID_KEY_ALIAS")?.toString() ?: System.getenv("ANDROID_KEY_ALIAS") ?: "muufin"
+                keyPassword = findProperty("ANDROID_KEY_PASSWORD")?.toString() ?: System.getenv("ANDROID_KEY_PASSWORD")
             }
         }
     }
